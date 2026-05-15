@@ -83,11 +83,11 @@ function LocationFlyTo({ position }: { position: LatLngExpression | null }) {
 function MapClickHandler({
   onSelect,
 }: {
-  onSelect: (position: { lat: number; lng: number }) => void;
+  onSelect: (position: { latitude: number; longitude: number }) => void;
 }) {
   useMapEvents({
     click(event) {
-      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
+      onSelect({ latitude: event.latlng.lat, longitude: event.latlng.lng });
     },
   });
 
@@ -102,7 +102,10 @@ function buildPhotoPath(file: File, code: string) {
 
 export default function HydrantMap() {
   const [hydrants, setHydrants] = useState<Hydrant[]>([]);
-  const [draftPosition, setDraftPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [draftPosition, setDraftPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [userPosition, setUserPosition] = useState<LatLngExpression | null>(null);
   const [form, setForm] = useState<HydrantFormState>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -145,7 +148,7 @@ export default function HydrantMap() {
 
       const { data, error } = await supabase
         .from("hydrants")
-        .select("id, code, type, status, notes, lat, lng, photo_url, created_at")
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -219,15 +222,15 @@ export default function HydrantMap() {
         type: form.type,
         status: form.status,
         notes: form.notes.trim() || null,
-        lat: draftPosition.lat,
-        lng: draftPosition.lng,
+        latitude: draftPosition.latitude,
+        longitude: draftPosition.longitude,
         photo_url: photoUrl,
       };
 
       const { data, error } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, notes, lat, lng, photo_url, created_at")
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
         .single();
 
       if (error) {
@@ -246,7 +249,7 @@ export default function HydrantMap() {
   }
 
   const selectedCoordinates = draftPosition
-    ? `${draftPosition.lat.toFixed(5)}, ${draftPosition.lng.toFixed(5)}`
+    ? `${draftPosition.latitude.toFixed(5)}, ${draftPosition.longitude.toFixed(5)}`
     : "Nessun punto selezionato";
 
   return (
@@ -274,7 +277,7 @@ export default function HydrantMap() {
         )}
 
         {draftPosition && (
-          <Marker position={[draftPosition.lat, draftPosition.lng]} icon={draftIcon}>
+          <Marker position={[draftPosition.latitude, draftPosition.longitude]} icon={draftIcon}>
             <Tooltip direction="top" offset={[0, -24]} permanent>
               Nuovo idrante
             </Tooltip>
@@ -282,7 +285,11 @@ export default function HydrantMap() {
         )}
 
         {hydrants.map((hydrant) => (
-          <Marker key={hydrant.id} position={[hydrant.lat, hydrant.lng]} icon={hydrantIcon}>
+          <Marker
+            key={hydrant.id}
+            position={[hydrant.latitude, hydrant.longitude]}
+            icon={hydrantIcon}
+          >
             <Tooltip direction="top" offset={[0, -24]}>
               {hydrant.code} - {STATUS_LABELS[hydrant.status]}
             </Tooltip>
@@ -292,7 +299,7 @@ export default function HydrantMap() {
         {hydrants.map((hydrant) => (
           <CircleMarker
             key={`${hydrant.id}-range`}
-            center={[hydrant.lat, hydrant.lng]}
+            center={[hydrant.latitude, hydrant.longitude]}
             radius={10}
             pathOptions={{
               color: hydrant.status === "fuori_servizio" ? "#991b1b" : "#166534",

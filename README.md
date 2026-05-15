@@ -27,8 +27,8 @@ create table public.hydrants (
   type text not null,
   status text not null,
   notes text,
-  lat double precision not null,
-  lng double precision not null,
+  latitude double precision not null,
+  longitude double precision not null,
   photo_url text,
   created_at timestamptz not null default now()
 );

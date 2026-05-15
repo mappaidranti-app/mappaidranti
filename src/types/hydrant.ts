@@ -13,8 +13,8 @@ export type Hydrant = {
   type: HydrantType;
   status: HydrantStatus;
   notes: string | null;
-  lat: number;
-  lng: number;
+  latitude: number;
+  longitude: number;
   photo_url: string | null;
   created_at?: string;
 };
