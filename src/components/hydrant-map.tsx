@@ -5,6 +5,7 @@ import {
   CircleMarker,
   MapContainer,
   Marker,
+  Popup,
   TileLayer,
   Tooltip,
   useMap,
@@ -290,6 +291,44 @@ export default function HydrantMap() {
             position={[hydrant.latitude, hydrant.longitude]}
             icon={hydrantIcon}
           >
+            <Popup minWidth={220}>
+              <article className="space-y-2 text-sm text-slate-800">
+                {hydrant.photo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={hydrant.photo_url}
+                    alt={`Foto idrante ${hydrant.code}`}
+                    className="h-32 w-full rounded-md object-cover"
+                  />
+                )}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Codice
+                  </p>
+                  <h3 className="text-base font-semibold text-slate-950">{hydrant.code}</h3>
+                </div>
+                <dl className="grid grid-cols-2 gap-2">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Tipo
+                    </dt>
+                    <dd>{TYPE_LABELS[hydrant.type]}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Stato
+                    </dt>
+                    <dd>{STATUS_LABELS[hydrant.status]}</dd>
+                  </div>
+                </dl>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Note
+                  </p>
+                  <p className="whitespace-pre-wrap">{hydrant.notes || "Nessuna nota inserita."}</p>
+                </div>
+              </article>
+            </Popup>
             <Tooltip direction="top" offset={[0, -24]}>
               {hydrant.code} - {STATUS_LABELS[hydrant.status]}
             </Tooltip>
