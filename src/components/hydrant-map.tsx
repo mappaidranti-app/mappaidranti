@@ -22,7 +22,7 @@ import {
   Siren,
   X,
 } from "lucide-react";
-import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/browser";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { Hydrant, HydrantFormState, HydrantStatus, HydrantType } from "@/types/hydrant";
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
@@ -94,14 +94,13 @@ function MapClickHandler({
   return null;
 }
 
-function buildPhotoPath(file: File, code: string, municipalityId: string) {
+function buildPhotoPath(file: File, code: string) {
   const extension = file.name.split(".").pop() || "jpg";
   const safeCode = code.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-") || "idrante";
-  return `${municipalityId}/${safeCode}-${crypto.randomUUID()}.${extension}`;
+  return `${safeCode}-${crypto.randomUUID()}.${extension}`;
 }
 
-export default function HydrantMap({ municipalityId }: { municipalityId: string }) {
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+export default function HydrantMap() {
   const [hydrants, setHydrants] = useState<Hydrant[]>([]);
   const [draftPosition, setDraftPosition] = useState<{
     latitude: number;
@@ -149,10 +148,7 @@ export default function HydrantMap({ municipalityId }: { municipalityId: string 
 
       const { data, error } = await supabase
         .from("hydrants")
-        .select(
-          "id, municipality_id, code, type, status, notes, latitude, longitude, photo_url, created_at",
-        )
-        .eq("municipality_id", municipalityId)
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -165,7 +161,7 @@ export default function HydrantMap({ municipalityId }: { municipalityId: string 
     }
 
     loadHydrants();
-  }, [municipalityId, supabase]);
+  }, []);
 
   function locateUser() {
     if (!navigator.geolocation) {
@@ -208,7 +204,7 @@ export default function HydrantMap({ municipalityId }: { municipalityId: string 
       let photoUrl: string | null = null;
 
       if (form.photo) {
-        const path = buildPhotoPath(form.photo, form.code, municipalityId);
+        const path = buildPhotoPath(form.photo, form.code);
         const { error: uploadError } = await supabase.storage
           .from("hydrant-photos")
           .upload(path, form.photo, { upsert: false });
@@ -226,7 +222,6 @@ export default function HydrantMap({ municipalityId }: { municipalityId: string 
         type: form.type,
         status: form.status,
         notes: form.notes.trim() || null,
-        municipality_id: municipalityId,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         photo_url: photoUrl,
@@ -235,9 +230,7 @@ export default function HydrantMap({ municipalityId }: { municipalityId: string 
       const { data, error } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select(
-          "id, municipality_id, code, type, status, notes, latitude, longitude, photo_url, created_at",
-        )
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
         .single();
 
       if (error) {

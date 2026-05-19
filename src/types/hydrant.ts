@@ -9,7 +9,6 @@ export type HydrantType =
 
 export type Hydrant = {
   id: string;
-  municipality_id: string;
   code: string;
   type: HydrantType;
   status: HydrantStatus;
