@@ -107,7 +107,10 @@ export default function HydrantMap() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [userPosition, setUserPosition] = useState<LatLngExpression | null>(null);
+  const [userPosition, setUserPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [form, setForm] = useState<HydrantFormState>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("Tocca la mappa per censire un idrante.");
@@ -130,8 +133,11 @@ export default function HydrantMap() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserPosition([position.coords.latitude, position.coords.longitude]);
-        setMessage("Posizione rilevata. Tocca la mappa per aggiungere un idrante.");
+        setUserPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setMessage("Posizione rilevata. Premi Nuovo idrante qui per aprire la scheda.");
       },
       () => {
         setMessage("Posizione non autorizzata. La mappa resta navigabile manualmente.");
@@ -172,12 +178,35 @@ export default function HydrantMap() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserPosition([position.coords.latitude, position.coords.longitude]);
+        setUserPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setMessage("Mappa centrata sulla posizione corrente.");
       },
       () => setMessage("Impossibile leggere la posizione corrente."),
       { enableHighAccuracy: true, timeout: 8000 },
     );
+  }
+
+  function createHydrantAtCurrentPosition() {
+    if (!userPosition) {
+      setMessage("Posizione GPS non ancora disponibile.");
+      return;
+    }
+
+    setDraftPosition(userPosition);
+    setMessage("Scheda aperta sulla posizione GPS. Tocca la mappa solo per correggere.");
+  }
+
+  function correctDraftPosition(position: { latitude: number; longitude: number }) {
+    if (!draftPosition) {
+      setMessage("Premi Nuovo idrante qui prima di correggere manualmente la posizione.");
+      return;
+    }
+
+    setDraftPosition(position);
+    setMessage("Posizione corretta manualmente sulla mappa.");
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -256,7 +285,7 @@ export default function HydrantMap() {
   return (
     <main className="relative h-screen overflow-hidden bg-stone-100 text-slate-950">
       <MapContainer
-        center={userPosition ?? DEFAULT_CENTER}
+        center={userPosition ? [userPosition.latitude, userPosition.longitude] : DEFAULT_CENTER}
         zoom={userPosition ? 15 : 6}
         minZoom={4}
         zoomControl={false}
@@ -266,11 +295,13 @@ export default function HydrantMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapClickHandler onSelect={setDraftPosition} />
-        <LocationFlyTo position={userPosition} />
+        <MapClickHandler onSelect={correctDraftPosition} />
+        <LocationFlyTo
+          position={userPosition ? [userPosition.latitude, userPosition.longitude] : null}
+        />
 
         {userPosition && (
-          <Marker position={userPosition} icon={userIcon}>
+          <Marker position={[userPosition.latitude, userPosition.longitude]} icon={userIcon}>
             <Tooltip direction="top" offset={[0, -10]}>
               Posizione utente
             </Tooltip>
@@ -360,15 +391,26 @@ export default function HydrantMap() {
               <p className="truncate text-xs text-slate-600 md:text-sm">{message}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={locateUser}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 bg-white text-slate-800 shadow-sm transition hover:bg-slate-100"
-            aria-label="Centra sulla posizione utente"
-            title="Centra sulla posizione utente"
-          >
-            <LocateFixed size={19} aria-hidden="true" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={createHydrantAtCurrentPosition}
+              disabled={!userPosition}
+              className="flex h-10 items-center justify-center gap-2 rounded-md bg-red-700 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              <MapPinPlus size={18} aria-hidden="true" />
+              <span className="whitespace-nowrap">Nuovo idrante qui</span>
+            </button>
+            <button
+              type="button"
+              onClick={locateUser}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 bg-white text-slate-800 shadow-sm transition hover:bg-slate-100"
+              aria-label="Centra sulla posizione utente"
+              title="Centra sulla posizione utente"
+            >
+              <LocateFixed size={19} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </section>
 
