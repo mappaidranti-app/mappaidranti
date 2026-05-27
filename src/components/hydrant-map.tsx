@@ -232,6 +232,7 @@ export default function HydrantMap() {
 
     try {
       let photoUrl: string | null = null;
+      let photoUploadError: string | null = null;
 
       if (form.photo) {
         const path = buildPhotoPath(form.photo, form.code);
@@ -240,11 +241,11 @@ export default function HydrantMap() {
           .upload(path, form.photo, { upsert: false });
 
         if (uploadError) {
-          throw uploadError;
+          photoUploadError = uploadError.message;
+        } else {
+          const { data } = supabase.storage.from("hydrant-photos").getPublicUrl(path);
+          photoUrl = data.publicUrl;
         }
-
-        const { data } = supabase.storage.from("hydrant-photos").getPublicUrl(path);
-        photoUrl = data.publicUrl;
       }
 
       const payload = {
@@ -270,7 +271,11 @@ export default function HydrantMap() {
       setHydrants((current) => [data as Hydrant, ...current]);
       setDraftPosition(null);
       setForm(emptyForm);
-      setMessage("Idrante salvato su Supabase.");
+      setMessage(
+        photoUploadError
+          ? `Idrante salvato senza foto. Errore bucket: ${photoUploadError}`
+          : "Idrante salvato su Supabase.",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Salvataggio non riuscito.");
     } finally {
