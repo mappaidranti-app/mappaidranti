@@ -524,6 +524,7 @@ export default function HydrantMap() {
               <input
                 type="file"
                 accept="image/*"
+                capture="environment"
                 className="sr-only"
                 onChange={(event) =>
                   setForm({ ...form, photo: event.target.files?.[0] ?? null })
