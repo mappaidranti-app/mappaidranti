@@ -19,6 +19,7 @@ import {
   LocateFixed,
   MapPinPlus,
   Save,
+  Search,
   ShieldCheck,
   Siren,
   X,
@@ -81,6 +82,18 @@ function LocationFlyTo({ position }: { position: LatLngExpression | null }) {
   return null;
 }
 
+function BoundsFlyTo({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (bounds) {
+      map.flyToBounds(bounds, { padding: [50, 50], duration: 1.2 });
+    }
+  }, [map, bounds]);
+
+  return null;
+}
+
 function MapClickHandler({
   onSelect,
 }: {
@@ -115,6 +128,9 @@ export default function HydrantMap() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("Tocca la mappa per censire un idrante.");
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null);
+  const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set());
 
   const stats = useMemo(
     () => ({
@@ -232,7 +248,6 @@ export default function HydrantMap() {
 
     try {
       let photoUrl: string | null = null;
-      let photoUploadError: string | null = null;
 
       if (form.photo) {
         const path = buildPhotoPath(form.photo, form.code);
@@ -241,11 +256,11 @@ export default function HydrantMap() {
           .upload(path, form.photo, { upsert: false });
 
         if (uploadError) {
-          photoUploadError = uploadError.message;
-        } else {
-          const { data } = supabase.storage.from("hydrant-photos").getPublicUrl(path);
-          photoUrl = data.publicUrl;
+          throw uploadError;
         }
+
+        const { data } = supabase.storage.from("hydrant-photos").getPublicUrl(path);
+        photoUrl = data.publicUrl;
       }
 
       const payload = {
@@ -271,16 +286,48 @@ export default function HydrantMap() {
       setHydrants((current) => [data as Hydrant, ...current]);
       setDraftPosition(null);
       setForm(emptyForm);
-      setMessage(
-        photoUploadError
-          ? `Idrante salvato senza foto. Errore bucket: ${photoUploadError}`
-          : "Idrante salvato su Supabase.",
-      );
+      setMessage("Idrante salvato su Supabase.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Salvataggio non riuscito.");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function findClosestHydrants() {
+    if (!userPosition) {
+      setMessage("Posizione non disponibile. Premi il tasto geolocalizzazione.");
+      return;
+    }
+
+    if (hydrants.length === 0) {
+      setMessage("Nessun idrante sulla mappa.");
+      return;
+    }
+
+    const userLatLng = L.latLng(userPosition.latitude, userPosition.longitude);
+    
+    // Calcola le distanze (in metri)
+    const withDistances = hydrants.map((h) => ({
+      ...h,
+      distance: userLatLng.distanceTo(L.latLng(h.latitude, h.longitude)),
+    }));
+
+    // Ordina per distanza
+    withDistances.sort((a, b) => a.distance - b.distance);
+
+    // Prendi i 5 più vicini
+    const closest = withDistances.slice(0, 5);
+
+    setClosestHydrantsIds(new Set(closest.map((h) => h.id)));
+
+    // Imposta i bounds per includere utente e idranti trovati
+    const boundsPoints: L.LatLngExpression[] = [
+      [userPosition.latitude, userPosition.longitude],
+      ...closest.map((h) => [h.latitude, h.longitude] as L.LatLngExpression),
+    ];
+    setMapBounds(boundsPoints);
+    setMessage(`Trovati i ${closest.length} idranti più vicini (entro ${Math.round(closest[closest.length - 1].distance)}m).`);
   }
 
   const selectedCoordinates = draftPosition
@@ -304,6 +351,7 @@ export default function HydrantMap() {
         <LocationFlyTo
           position={userPosition ? [userPosition.latitude, userPosition.longitude] : null}
         />
+        <BoundsFlyTo bounds={mapBounds} />
 
         {userPosition && (
           <Marker position={[userPosition.latitude, userPosition.longitude]} icon={userIcon}>
@@ -371,18 +419,21 @@ export default function HydrantMap() {
           </Marker>
         ))}
 
-        {hydrants.map((hydrant) => (
-          <CircleMarker
-            key={`${hydrant.id}-range`}
-            center={[hydrant.latitude, hydrant.longitude]}
-            radius={10}
-            pathOptions={{
-              color: hydrant.status === "fuori_servizio" ? "#991b1b" : "#166534",
-              fillOpacity: 0.08,
-              weight: 1,
-            }}
-          />
-        ))}
+        {hydrants.map((hydrant) => {
+          const isClosest = closestHydrantsIds.has(hydrant.id);
+          return (
+            <CircleMarker
+              key={`${hydrant.id}-range`}
+              center={[hydrant.latitude, hydrant.longitude]}
+              radius={isClosest ? 20 : 10}
+              pathOptions={{
+                color: isClosest ? "#2563eb" : (hydrant.status === "fuori_servizio" ? "#991b1b" : "#166534"),
+                fillOpacity: isClosest ? 0.25 : 0.08,
+                weight: isClosest ? 2 : 1,
+              }}
+            />
+          );
+        })}
       </MapContainer>
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-3 sm:p-5">
@@ -397,6 +448,16 @@ export default function HydrantMap() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={findClosestHydrants}
+              disabled={!userPosition || hydrants.length === 0}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 bg-white text-slate-800 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Cerca idranti vicini"
+              title="Cerca idranti vicini"
+            >
+              <Search size={19} aria-hidden="true" />
+            </button>
             <button
               type="button"
               onClick={createHydrantAtCurrentPosition}

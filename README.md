@@ -51,9 +51,3 @@ create policy "Public hydrant photos upload"
 on storage.objects for insert
 with check (bucket_id = 'hydrant-photos');
 ```
-
-Se il progetto era stato configurato con lo schema multi-tenant, esegui prima lo script:
-
-```text
-supabase/fix-mvp-save.sql
-```
