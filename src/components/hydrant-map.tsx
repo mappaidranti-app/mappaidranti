@@ -322,9 +322,9 @@ export default function HydrantMap() {
     setClosestHydrantsIds(new Set(closest.map((h) => h.id)));
 
     // Imposta i bounds per includere utente e idranti trovati
-    const boundsPoints: L.LatLngExpression[] = [
+    const boundsPoints: L.LatLngTuple[] = [
       [userPosition.latitude, userPosition.longitude],
-      ...closest.map((h) => [h.latitude, h.longitude] as L.LatLngExpression),
+      ...closest.map((h) => [h.latitude, h.longitude] as L.LatLngTuple),
     ];
     setMapBounds(boundsPoints);
     setMessage(`Trovati i ${closest.length} idranti più vicini (entro ${Math.round(closest[closest.length - 1].distance)}m).`);
