@@ -335,7 +335,7 @@ export default function HydrantMap() {
     : "Nessun punto selezionato";
 
   return (
-    <main className="relative h-screen overflow-hidden bg-stone-100 text-slate-950">
+    <main className="relative h-screen overflow-hidden bg-slate-50 text-slate-950">
       <MapContainer
         center={userPosition ? [userPosition.latitude, userPosition.longitude] : DEFAULT_CENTER}
         zoom={userPosition ? 15 : 6}
@@ -427,8 +427,8 @@ export default function HydrantMap() {
               center={[hydrant.latitude, hydrant.longitude]}
               radius={isClosest ? 20 : 10}
               pathOptions={{
-                color: isClosest ? "#2563eb" : (hydrant.status === "fuori_servizio" ? "#991b1b" : "#166534"),
-                fillOpacity: isClosest ? 0.25 : 0.08,
+                color: isClosest ? "#06b6d4" : (hydrant.status === "fuori_servizio" ? "#e11d48" : "#10b981"),
+                fillOpacity: isClosest ? 0.3 : 0.1,
                 weight: isClosest ? 2 : 1,
               }}
             />
@@ -437,10 +437,10 @@ export default function HydrantMap() {
       </MapContainer>
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-3 sm:p-5">
-        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/95 px-3 py-3 shadow-lg shadow-slate-900/10 backdrop-blur md:px-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-red-700 text-white">
-              <Siren size={20} aria-hidden="true" />
+        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-2xl shadow-blue-900/10 backdrop-blur-xl transition-all">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-blue-500/30">
+              <Siren size={22} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold tracking-tight md:text-xl">Mappa Idranti</h1>
@@ -452,7 +452,7 @@ export default function HydrantMap() {
               type="button"
               onClick={findClosestHydrants}
               disabled={!userPosition || hydrants.length === 0}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 bg-white text-slate-800 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
               aria-label="Cerca idranti vicini"
               title="Cerca idranti vicini"
             >
@@ -462,7 +462,7 @@ export default function HydrantMap() {
               type="button"
               onClick={createHydrantAtCurrentPosition}
               disabled={!userPosition}
-              className="flex h-10 items-center justify-center gap-2 rounded-md bg-red-700 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 hover:from-cyan-400 hover:to-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
             >
               <MapPinPlus size={18} aria-hidden="true" />
               <span className="whitespace-nowrap">Nuovo idrante qui</span>
@@ -470,7 +470,7 @@ export default function HydrantMap() {
             <button
               type="button"
               onClick={locateUser}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 bg-white text-slate-800 shadow-sm transition hover:bg-slate-100"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95"
               aria-label="Centra sulla posizione utente"
               title="Centra sulla posizione utente"
             >
@@ -480,8 +480,8 @@ export default function HydrantMap() {
         </div>
       </section>
 
-      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[72vh] overflow-y-auto border-t border-slate-200 bg-white shadow-2xl shadow-slate-950/20 md:inset-y-5 md:left-auto md:right-5 md:max-h-none md:w-[390px] md:rounded-lg md:border">
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-4">
+      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[72vh] overflow-y-auto border-t border-white/60 bg-white/85 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] backdrop-blur-2xl md:inset-y-5 md:left-auto md:right-5 md:max-h-none md:w-[390px] md:rounded-2xl md:border md:shadow-2xl md:shadow-blue-900/10">
+        <div className="sticky top-0 z-10 border-b border-slate-200/50 bg-white/50 px-4 py-4 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -602,7 +602,7 @@ export default function HydrantMap() {
           <button
             type="submit"
             disabled={isSaving}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-sm font-semibold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
           >
             <Save size={18} aria-hidden="true" />
             {isSaving ? "Salvataggio..." : "Salva idrante"}
