@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 type Municipality = {
   id: string;
@@ -14,19 +15,45 @@ type Municipality = {
 export default function AdminPage() {
   const [data, setData] = useState<Municipality | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
       if (!supabase) {
         setLoading(false);
+        router.push("/login");
         return;
       }
       
       try {
-        const { data: municipalities, error } = await supabase
-          .from("municipalities")
-          .select("*")
-          .limit(1);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.push("/login");
+          return;
+        }
+
+        // Recupera il profilo dell'utente loggato
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role, municipality_id")
+          .eq("id", session.user.id)
+          .single();
+
+        // Se non è referente, lo rimanda alla mappa pubblica
+        if (profileError || profile?.role !== "referent") {
+          router.push("/");
+          return;
+        }
+
+        // Se è referente, cerchiamo il suo comune
+        let query = supabase.from("municipalities").select("*");
+        if (profile?.municipality_id) {
+          query = query.eq("id", profile.municipality_id).limit(1);
+        } else {
+          query = query.limit(1); // fallback
+        }
+
+        const { data: municipalities, error } = await query;
 
         if (!error && municipalities && municipalities.length > 0) {
           setData(municipalities[0]);
@@ -39,7 +66,7 @@ export default function AdminPage() {
     }
 
     fetchData();
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 flex justify-center items-start pt-12 md:pt-20">
