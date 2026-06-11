@@ -36,7 +36,6 @@ export async function createOperator(formData: FormData) {
     password,
     email_confirm: true,
     phone_confirm: false,
-    refresh_token: false,
   });
 
   if (userErr) return { error: userErr.message };
