@@ -1,9 +1,6 @@
-"use client";
-
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { LogoutButton } from "@/components/logout-button";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,13 +22,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
   return (
     <html
       lang="it"
@@ -39,12 +29,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <header className="bg-white shadow p-4 flex justify-end">
-          <button
-            onClick={handleLogout}
-            className="text-sm text-red-600 hover:text-red-800 font-medium"
-          >
-            Esci
-          </button>
+          <LogoutButton />
         </header>
         {children}
       </body>
