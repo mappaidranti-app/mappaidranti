@@ -42,7 +42,7 @@ export async function createOperator(formData: FormData) {
 
   // Inserisci il profilo operativo
   const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
-    id: newUser.id,
+    id: newUser.user.id,
     role: "operator",
     municipality_id: referentProfile.municipality_id,
     full_name: fullName,
