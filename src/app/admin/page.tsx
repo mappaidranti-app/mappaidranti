@@ -34,22 +34,30 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
 
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetchData() {
       if (!supabase) {
         setLoading(false);
+        setDebugInfo("❌ Supabase non configurato");
         router.push("/login");
         return;
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log("🔍 [ADMIN DEBUG] session:", session, "sessionError:", sessionError);
+        
         if (!session) {
+          setDebugInfo("❌ Nessuna sessione attiva");
+          console.log("🔍 [ADMIN DEBUG] Nessuna sessione → redirect a /login");
           router.push("/login");
           return;
         }
         
         setReferentId(session.user.id);
+        console.log("🔍 [ADMIN DEBUG] User ID:", session.user.id);
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -57,8 +65,16 @@ export default function AdminPage() {
           .eq("id", session.user.id)
           .single();
 
+        console.log("🔍 [ADMIN DEBUG] profile:", JSON.stringify(profile), "profileError:", JSON.stringify(profileError));
+
         if (profileError || profile?.role !== "referent") {
-          router.push("/");
+          const reason = profileError
+            ? `Errore profilo: ${profileError.message} (code: ${profileError.code})`
+            : `Ruolo non valido: "${profile?.role}" (atteso: "referent")`;
+          console.error("🔍 [ADMIN DEBUG] REDIRECT MOTIVO:", reason);
+          setDebugInfo(`❌ ${reason}`);
+          // NON redirigere automaticamente per debug: mostra l'errore
+          setLoading(false);
           return;
         }
 
@@ -136,6 +152,17 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 pt-12 md:pt-20">
       <div className="max-w-4xl mx-auto space-y-8">
+        
+        {/* 🔍 Banner di debug - DA RIMUOVERE dopo aver risolto */}
+        {debugInfo && (
+          <div className="bg-yellow-100 border-2 border-yellow-400 text-yellow-900 p-4 rounded-xl text-sm font-mono">
+            <p className="font-bold mb-1">🔍 DEBUG INFO (temporaneo):</p>
+            <p>{debugInfo}</p>
+            <p className="mt-2 text-xs text-yellow-700">
+              Apri la console del browser (F12) per i dettagli completi.
+            </p>
+          </div>
+        )}
         
         {/* Card Info Comune */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
