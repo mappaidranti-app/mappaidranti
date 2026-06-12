@@ -20,7 +20,7 @@ export function TopMenu() {
       if (session) {
         setIsAuthenticated(true);
         // Check role securely via Server Action
-        const { role } = await getUserRole();
+        const { role } = await getUserRole(session.user.id);
         if (role === "referent") {
           setIsReferent(true);
         }
