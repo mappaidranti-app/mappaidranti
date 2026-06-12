@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { LogoutButton } from "@/components/logout-button";
+import { TopMenu } from "@/components/top-menu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,8 +28,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="bg-white shadow p-4 flex justify-end">
-          <LogoutButton />
+        <header className="bg-white shadow p-4 flex justify-between items-center relative z-50">
+          <div className="font-bold text-gray-800 text-lg">Mappa Idranti</div>
+          <TopMenu />
         </header>
         {children}
       </body>
