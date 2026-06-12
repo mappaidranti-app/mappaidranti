@@ -10,16 +10,15 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key-f
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
- * Ottiene il ruolo dell'utente corrente bypassando RLS.
+ * Ottiene il ruolo dell'utente bypassando RLS, usando l'ID utente passato dal client.
  */
-export async function getUserRole() {
-  const { data: { session } } = await supabaseAdmin.auth.getSession();
-  if (!session) return { role: null };
+export async function getUserRole(userId: string) {
+  if (!userId) return { role: null };
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role")
-    .eq("id", session.user.id)
+    .eq("id", userId)
     .single();
 
   return { role: profile?.role || null };
@@ -28,14 +27,13 @@ export async function getUserRole() {
 /**
  * Ottiene i dati per la dashboard bypassando RLS.
  */
-export async function getDashboardData() {
-  const { data: { session } } = await supabaseAdmin.auth.getSession();
-  if (!session) return { error: "Non autenticato" };
+export async function getDashboardData(userId: string) {
+  if (!userId) return { error: "Non autenticato" };
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role, municipality_id")
-    .eq("id", session.user.id)
+    .eq("id", userId)
     .single();
 
   if (profile?.role !== "referent") return { error: "Non autorizzato" };
@@ -59,7 +57,7 @@ export async function getDashboardData() {
     if (ops) operators = ops;
   }
 
-  return { municipality, operators, referentId: session.user.id };
+  return { municipality, operators, referentId: userId };
 }
 
 /**
@@ -69,16 +67,15 @@ export async function createOperator(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const fullName = formData.get("fullName") as string;
+  const referentId = formData.get("referentId") as string; // Passato dal form
 
-  // Verifica sessione del referente
-  const { data: { session } } = await supabaseAdmin.auth.getSession();
-  if (!session) return { error: "Utente non autenticato" };
+  if (!referentId) return { error: "Utente non autenticato" };
 
   // Ottieni profilo del referente
   const { data: referentProfile, error: referentErr } = await supabaseAdmin
     .from("profiles")
     .select("municipality_id")
-    .eq("id", session.user.id)
+    .eq("id", referentId)
     .single();
     
   if (referentErr || !referentProfile?.municipality_id)
@@ -112,15 +109,14 @@ export async function createOperator(formData: FormData) {
 /**
  * Elimina un operatore appartenente allo stesso comune del referente.
  */
-export async function deleteOperator(operatorId: string) {
-  const { data: { session } } = await supabaseAdmin.auth.getSession();
-  if (!session) return { error: "Utente non autenticato" };
+export async function deleteOperator(operatorId: string, referentId: string) {
+  if (!referentId) return { error: "Utente non autenticato" };
 
   // Controlla che l'operatore appartenga allo stesso comune
   const { data: referentProfile, error: refErr } = await supabaseAdmin
     .from("profiles")
     .select("municipality_id")
-    .eq("id", session.user.id)
+    .eq("id", referentId)
     .single();
   if (refErr) return { error: "Impossibile verificare il referente" };
 

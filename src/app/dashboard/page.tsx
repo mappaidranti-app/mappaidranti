@@ -36,7 +36,14 @@ export default function DashboardPage() {
 
   const fetchDashboard = async () => {
     try {
-      const result = await getDashboardData();
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session) {
+        setIsAuthorized(false);
+        setLoading(false);
+        return;
+      }
+
+      const result = await getDashboardData(session.user.id);
       if (result.error) {
         setIsAuthorized(false);
       } else {
@@ -89,9 +96,10 @@ export default function DashboardPage() {
   };
 
   const handleDeleteOperator = async (operatorId: string) => {
+    if (!referentId) return;
     if (!confirm("Sei sicuro di voler eliminare questo operatore?")) return;
     
-    const result = await deleteOperator(operatorId);
+    const result = await deleteOperator(operatorId, referentId);
     if (result.error) {
       alert("Errore durante l'eliminazione: " + result.error);
     } else {
