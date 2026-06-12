@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { getUserRole } from "../app/dashboard/actions";
 
 export function TopMenu() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -18,14 +19,9 @@ export function TopMenu() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
-        // Check role
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .single();
-
-        if (profile?.role === "referent") {
+        // Check role securely via Server Action
+        const { role } = await getUserRole();
+        if (role === "referent") {
           setIsReferent(true);
         }
       } else {

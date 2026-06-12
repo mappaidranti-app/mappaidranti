@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { createOperator, deleteOperator } from "./actions";
+import { createOperator, deleteOperator, getDashboardData } from "./actions";
 
 type Municipality = {
   id: string;
@@ -35,68 +34,27 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{type: 'error' | 'success', text: string} | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!supabase) {
-        setLoading(false);
+  const fetchDashboard = async () => {
+    try {
+      const result = await getDashboardData();
+      if (result.error) {
         setIsAuthorized(false);
-        return;
-      }
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          router.push("/login");
-          return;
-        }
-        
-        setReferentId(session.user.id);
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, municipality_id")
-          .eq("id", session.user.id)
-          .single();
-
-        if (profileError || profile?.role !== "referent") {
-          setIsAuthorized(false);
-          setLoading(false);
-          return;
-        }
-
+      } else {
         setIsAuthorized(true);
-        const municipalityId = profile?.municipality_id;
-        
-        let query = supabase.from("municipalities").select("*");
-        if (municipalityId) {
-          query = query.eq("id", municipalityId).limit(1);
-        } else {
-          query = query.limit(1);
-        }
-
-        const { data: municipalities, error } = await query;
-
-        if (!error && municipalities && municipalities.length > 0) {
-          setData(municipalities[0]);
-          
-          // Se abbiamo trovato il comune, carichiamo gli operatori
-          const { data: ops } = await supabase
-            .from("profiles")
-            .select("id, full_name, email, created_at")
-            .eq("role", "operator")
-            .eq("municipality_id", municipalities[0].id)
-            .order("created_at", { ascending: false });
-            
-          if (ops) setOperators(ops);
-        }
-      } catch (err) {
-        console.error("Errore nel recupero dati:", err);
-      } finally {
-        setLoading(false);
+        if (result.municipality) setData(result.municipality as Municipality);
+        if (result.operators) setOperators(result.operators as Operator[]);
+        if (result.referentId) setReferentId(result.referentId as string);
       }
+    } catch (err) {
+      console.error("Errore nel recupero dati:", err);
+      setIsAuthorized(false);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchDashboard();
   }, [router]);
 
   const handleAddOperator = async (e: React.FormEvent) => {
@@ -123,15 +81,8 @@ export default function DashboardPage() {
       setFormEmail("");
       setFormPassword("");
       
-      // Ricarica la lista dal server per avere gli ID corretti
-      const { data: ops } = await supabase!
-        .from("profiles")
-        .select("id, full_name, email, created_at")
-        .eq("role", "operator")
-        .eq("municipality_id", data.id)
-        .order("created_at", { ascending: false });
-        
-      if (ops) setOperators(ops);
+      // Ricarica la lista chiamando la server action
+      fetchDashboard();
     }
     
     setIsSubmitting(false);

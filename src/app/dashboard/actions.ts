@@ -10,6 +10,59 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key-f
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
+ * Ottiene il ruolo dell'utente corrente bypassando RLS.
+ */
+export async function getUserRole() {
+  const { data: { session } } = await supabaseAdmin.auth.getSession();
+  if (!session) return { role: null };
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+  return { role: profile?.role || null };
+}
+
+/**
+ * Ottiene i dati per la dashboard bypassando RLS.
+ */
+export async function getDashboardData() {
+  const { data: { session } } = await supabaseAdmin.auth.getSession();
+  if (!session) return { error: "Non autenticato" };
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role, municipality_id")
+    .eq("id", session.user.id)
+    .single();
+
+  if (profile?.role !== "referent") return { error: "Non autorizzato" };
+
+  const municipalityId = profile?.municipality_id;
+  let query = supabaseAdmin.from("municipalities").select("*");
+  if (municipalityId) query = query.eq("id", municipalityId).limit(1);
+  else query = query.limit(1);
+  
+  const { data: municipalities } = await query;
+  const municipality = municipalities?.[0] || null;
+
+  let operators: { id: string, full_name: string, email: string, created_at: string }[] = [];
+  if (municipality) {
+    const { data: ops } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, created_at")
+      .eq("role", "operator")
+      .eq("municipality_id", municipality.id)
+      .order("created_at", { ascending: false });
+    if (ops) operators = ops;
+  }
+
+  return { municipality, operators, referentId: session.user.id };
+}
+
+/**
  * Crea un nuovo operatore per il comune del referente corrente.
  */
 export async function createOperator(formData: FormData) {
