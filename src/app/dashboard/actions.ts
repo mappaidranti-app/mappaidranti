@@ -26,6 +26,7 @@ export async function getUserRole(userId: string) {
 
 /**
  * Ottiene i dati per la dashboard bypassando RLS.
+ * Se l'utente non ha municipality_id è un super-admin: vede tutti i comuni.
  */
 export async function getDashboardData(userId: string) {
   if (!userId) return { error: "Non autenticato" };
@@ -38,13 +39,15 @@ export async function getDashboardData(userId: string) {
 
   if (profile?.role !== "referent") return { error: "Non autorizzato" };
 
+  const isSuperAdmin = !profile?.municipality_id;
   const municipalityId = profile?.municipality_id;
-  let query = supabaseAdmin.from("municipalities").select("*");
-  if (municipalityId) query = query.eq("id", municipalityId).limit(1);
-  else query = query.limit(1);
-  
-  const { data: municipalities } = await query;
-  const municipality = municipalities?.[0] || null;
+
+  // Super admin vede tutti i comuni; referente vede solo il suo
+  const { data: municipalities } = isSuperAdmin
+    ? await supabaseAdmin.from("municipalities").select("*").order("name")
+    : await supabaseAdmin.from("municipalities").select("*").eq("id", municipalityId).limit(1);
+
+  const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
 
   let operators: { id: string, full_name: string, email: string, created_at: string }[] = [];
   if (municipality) {
@@ -57,7 +60,67 @@ export async function getDashboardData(userId: string) {
     if (ops) operators = ops;
   }
 
-  return { municipality, operators, referentId: userId };
+  return { isSuperAdmin, municipalities: municipalities || [], municipality, operators, referentId: userId };
+}
+
+/**
+ * Crea un nuovo Comune e il suo Referente (solo super admin).
+ */
+export async function createMunicipality(formData: FormData) {
+  const municipalityName = formData.get("municipalityName") as string;
+  const referentName = formData.get("referentName") as string;
+  const referentEmail = formData.get("referentEmail") as string;
+  const referentPassword = formData.get("referentPassword") as string;
+  const callerUserId = formData.get("callerUserId") as string;
+
+  if (!callerUserId) return { error: "Utente non autenticato" };
+
+  // Verifica che sia super admin
+  const { data: callerProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("role, municipality_id")
+    .eq("id", callerUserId)
+    .single();
+
+  if (callerProfile?.role !== "referent" || callerProfile?.municipality_id)
+    return { error: "Non autorizzato: solo il super admin può creare comuni" };
+
+  // Crea il record del comune
+  const { data: newMunicipality, error: munErr } = await supabaseAdmin
+    .from("municipalities")
+    .insert({ name: municipalityName, contact_name: referentName })
+    .select()
+    .single();
+
+  if (munErr) return { error: munErr.message };
+
+  // Crea l'utente Supabase per il referente
+  const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
+    email: referentEmail,
+    password: referentPassword,
+    email_confirm: true,
+    phone_confirm: false,
+  });
+
+  if (userErr) {
+    // Rollback: elimina il comune appena creato
+    await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id);
+    return { error: userErr.message };
+  }
+
+  // Crea il profilo del referente
+  const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
+    id: newUser.user.id,
+    role: "referent",
+    municipality_id: newMunicipality.id,
+    full_name: referentName,
+    email: referentEmail,
+  });
+
+  if (profileErr) return { error: profileErr.message };
+
+  revalidatePath("/dashboard");
+  return { success: true, municipality: newMunicipality };
 }
 
 /**
