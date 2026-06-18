@@ -49,11 +49,18 @@ export async function getDashboardData(userId: string) {
 
   const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
 
-  let operators: { id: string, full_name: string, email: string, created_at: string }[] = [];
-  if (municipality) {
+  let operators: { id: string, full_name: string, email: string, created_at: string, municipality_id?: string }[] = [];
+  if (isSuperAdmin) {
     const { data: ops } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, created_at")
+      .select("id, full_name, email, created_at, municipality_id")
+      .eq("role", "operator")
+      .order("created_at", { ascending: false });
+    if (ops) operators = ops;
+  } else if (municipality) {
+    const { data: ops } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, created_at, municipality_id")
       .eq("role", "operator")
       .eq("municipality_id", municipality.id)
       .order("created_at", { ascending: false });
@@ -130,19 +137,24 @@ export async function createOperator(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const fullName = formData.get("fullName") as string;
-  const referentId = formData.get("referentId") as string; // Passato dal form
+  const referentId = formData.get("referentId") as string;
+  const formMunicipalityId = formData.get("municipalityId") as string;
 
   if (!referentId) return { error: "Utente non autenticato" };
 
-  // Ottieni profilo del referente
+  // Ottieni profilo del chiamante
   const { data: referentProfile, error: referentErr } = await supabaseAdmin
     .from("profiles")
     .select("municipality_id")
     .eq("id", referentId)
     .single();
     
-  if (referentErr || !referentProfile?.municipality_id)
-    return { error: "Impossibile determinare comune del referente" };
+  if (referentErr) return { error: "Impossibile determinare profilo del chiamante" };
+
+  const isSuperAdmin = !referentProfile?.municipality_id;
+  const targetMunicipalityId = isSuperAdmin ? formMunicipalityId : referentProfile.municipality_id;
+
+  if (!targetMunicipalityId) return { error: "Comune non valido o mancante" };
 
   // Crea l'utente Supabase
   const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
@@ -158,7 +170,7 @@ export async function createOperator(formData: FormData) {
   const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
     id: newUser.user.id,
     role: "operator",
-    municipality_id: referentProfile.municipality_id,
+    municipality_id: targetMunicipalityId,
     full_name: fullName,
     email,
   });
@@ -170,18 +182,19 @@ export async function createOperator(formData: FormData) {
 }
 
 /**
- * Elimina un operatore appartenente allo stesso comune del referente.
+ * Elimina un operatore. Il Super Admin può eliminare tutti, il referente solo i propri.
  */
 export async function deleteOperator(operatorId: string, referentId: string) {
   if (!referentId) return { error: "Utente non autenticato" };
 
-  // Controlla che l'operatore appartenga allo stesso comune
   const { data: referentProfile, error: refErr } = await supabaseAdmin
     .from("profiles")
     .select("municipality_id")
     .eq("id", referentId)
     .single();
-  if (refErr) return { error: "Impossibile verificare il referente" };
+  if (refErr) return { error: "Impossibile verificare l'utente chiamante" };
+
+  const isSuperAdmin = !referentProfile?.municipality_id;
 
   const { data: targetProfile, error: targetErr } = await supabaseAdmin
     .from("profiles")
@@ -190,7 +203,7 @@ export async function deleteOperator(operatorId: string, referentId: string) {
     .single();
   if (targetErr) return { error: "Operatore non trovato" };
 
-  if (targetProfile.role !== "operator" || targetProfile.municipality_id !== referentProfile.municipality_id) {
+  if (targetProfile.role !== "operator" || (!isSuperAdmin && targetProfile.municipality_id !== referentProfile.municipality_id)) {
     return { error: "Operazione non autorizzata" };
   }
 
