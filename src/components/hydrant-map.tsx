@@ -29,22 +29,26 @@ import type { Hydrant, HydrantFormState, HydrantStatus, HydrantType } from "@/ty
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
 const STATUS_LABELS: Record<HydrantStatus, string> = {
-  operativo: "Operativo",
-  da_verificare: "Da verificare",
-  fuori_servizio: "Fuori servizio",
+  Funzionante: "Funzionante",
+  "Non funzionante": "Non funzionante",
+  "Da verificare": "Da verificare",
 };
 const TYPE_LABELS: Record<HydrantType, string> = {
-  soprassuolo: "Soprassuolo",
-  sottosuolo: "Sottosuolo",
-  colonnina: "Colonnina",
-  naspo: "Naspo",
-  altro: "Altro",
+  Soprasuolo: "Soprasuolo",
+  Sottosuolo: "Sottosuolo",
+  Parete: "Parete",
 };
 
 const emptyForm: HydrantFormState = {
   code: "",
-  type: "soprassuolo",
-  status: "da_verificare",
+  hamlet: "",
+  street: "",
+  street_number: "",
+  type: "Soprasuolo",
+  connections: [],
+  status: "Funzionante",
+  sign_present: null,
+  accessibility: "",
   notes: "",
   photo: null,
 };
@@ -131,12 +135,13 @@ export default function HydrantMap() {
   
   const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null);
   const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set());
+  const [municipalityId, setMunicipalityId] = useState<string | null>(null);
 
   const stats = useMemo(
     () => ({
       total: hydrants.length,
-      operative: hydrants.filter((hydrant) => hydrant.status === "operativo").length,
-      review: hydrants.filter((hydrant) => hydrant.status === "da_verificare").length,
+      operative: hydrants.filter((hydrant) => hydrant.status === "Funzionante").length,
+      review: hydrants.filter((hydrant) => hydrant.status === "Da verificare").length,
     }),
     [hydrants],
   );
@@ -169,9 +174,21 @@ export default function HydrantMap() {
         return;
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user?.id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("municipality_id")
+          .eq("id", sessionData.session.user.id)
+          .single();
+        if (profile?.municipality_id) {
+          setMunicipalityId(profile.municipality_id);
+        }
+      }
+
       const { data, error } = await supabase
         .from("hydrants")
-        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -271,12 +288,19 @@ export default function HydrantMap() {
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         photo_url: photoUrl,
+        municipality_id: municipalityId,
+        hamlet: form.hamlet.trim() || null,
+        street: form.street.trim() || null,
+        street_number: form.street_number.trim() || null,
+        connections: form.connections,
+        sign_present: form.sign_present,
+        accessibility: form.accessibility || null,
       };
 
       const { data, error } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at")
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
         .single();
 
       if (error) {
@@ -427,7 +451,7 @@ export default function HydrantMap() {
               center={[hydrant.latitude, hydrant.longitude]}
               radius={isClosest ? 20 : 10}
               pathOptions={{
-                color: isClosest ? "#06b6d4" : (hydrant.status === "fuori_servizio" ? "#e11d48" : "#10b981"),
+                color: isClosest ? "#06b6d4" : (hydrant.status === "Non funzionante" ? "#e11d48" : "#10b981"),
                 fillOpacity: isClosest ? 0.3 : 0.1,
                 weight: isClosest ? 2 : 1,
               }}
@@ -530,45 +554,169 @@ export default function HydrantMap() {
             <p className="mt-1 font-mono text-sm text-slate-950">{selectedCoordinates}</p>
           </div>
 
-          <Field label="Codice">
-            <input
-              value={form.code}
-              onChange={(event) => setForm({ ...form, code: event.target.value })}
-              placeholder="IDR-2026-001"
-              className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
-            />
-          </Field>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-1">
-            <Field label="Tipologia">
-              <select
-                value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value as HydrantType })}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Identificazione</h3>
+            <Field label="Codice idrante">
+              <input
+                required
+                value={form.code}
+                onChange={(event) => setForm({ ...form, code: event.target.value })}
+                placeholder="Es. IDR-2026-001"
                 className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
-              >
-                {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
 
-            <Field label="Stato">
-              <select
-                value={form.status}
-                onChange={(event) =>
-                  setForm({ ...form, status: event.target.value as HydrantStatus })
-                }
-                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
-              >
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Comune">
+                <input
+                  disabled
+                  value={municipalityId ? "Rilevato in automatico" : "Non disponibile"}
+                  className="h-11 w-full rounded-md border border-slate-200 bg-slate-100 text-slate-500 px-3 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Frazione / Località">
+                <input
+                  value={form.hamlet}
+                  onChange={(event) => setForm({ ...form, hamlet: event.target.value })}
+                  placeholder="Es. Centro Storico"
+                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <Field label="Via">
+                  <input
+                    required
+                    value={form.street}
+                    onChange={(event) => setForm({ ...form, street: event.target.value })}
+                    placeholder="Es. Via Roma"
+                    className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                  />
+                </Field>
+              </div>
+              <div className="col-span-1">
+                <Field label="Civico (opz.)">
+                  <input
+                    value={form.street_number}
+                    onChange={(event) => setForm({ ...form, street_number: event.target.value })}
+                    placeholder="Es. 15/A"
+                    className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Tipologia</h3>
+            <div className="flex gap-4">
+              {["Soprasuolo", "Sottosuolo", "Parete"].map((typeOption) => (
+                <label key={typeOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="type"
+                    value={typeOption}
+                    checked={form.type === typeOption}
+                    onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  {typeOption}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Attacchi</h3>
+            <div className="flex gap-4">
+              {["UNI 45", "UNI 70", "UNI 100"].map((connection) => (
+                <label key={connection} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.connections.includes(connection)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setForm({ ...form, connections: [...form.connections, connection] });
+                      } else {
+                        setForm({ ...form, connections: form.connections.filter((c) => c !== connection) });
+                      }
+                    }}
+                    className="h-4 w-4 text-red-600 rounded focus:ring-red-500"
+                  />
+                  {connection}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Stato Funzionale</h3>
+            <div className="flex flex-col gap-2">
+              {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
+                <label key={statusOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="status"
+                    value={statusOption}
+                    checked={form.status === statusOption}
+                    onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  {statusOption}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Cartello di Segnalazione</h3>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="sign_present"
+                  checked={form.sign_present === true}
+                  onChange={() => setForm({ ...form, sign_present: true })}
+                  className="h-4 w-4 text-red-600 focus:ring-red-500"
+                />
+                Presente
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="sign_present"
+                  checked={form.sign_present === false}
+                  onChange={() => setForm({ ...form, sign_present: false })}
+                  className="h-4 w-4 text-red-600 focus:ring-red-500"
+                />
+                Assente
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Accessibilità</h3>
+            <div className="flex flex-col gap-2">
+              {[
+                "Accessibile a tutti i mezzi",
+                "Accessibile ai camion (strada > 3,5m)",
+                "Solo mezzi leggeri"
+              ].map((accessOption) => (
+                <label key={accessOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="accessibility"
+                    value={accessOption}
+                    checked={form.accessibility === accessOption}
+                    onChange={() => setForm({ ...form, accessibility: accessOption })}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  {accessOption}
+                </label>
+              ))}
+            </div>
           </div>
 
           <Field label="Note">
