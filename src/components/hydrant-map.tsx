@@ -548,7 +548,7 @@ export default function HydrantMap() {
         </div>
       </section>
 
-      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[72vh] overflow-y-auto border-t border-white/60 bg-white/85 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] backdrop-blur-2xl md:inset-y-5 md:left-auto md:right-5 md:max-h-none md:w-[390px] md:rounded-2xl md:border md:shadow-2xl md:shadow-blue-900/10">
+      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[72vh] overflow-y-auto border-t border-white/60 bg-white/85 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] backdrop-blur-2xl md:inset-y-5 md:left-auto md:right-5 md:max-h-none md:w-[450px] md:rounded-2xl md:border md:shadow-2xl md:shadow-blue-900/10">
         <div className="sticky top-0 z-10 border-b border-slate-200/50 bg-white/50 px-4 py-4 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
             <div>
