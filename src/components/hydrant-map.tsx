@@ -260,7 +260,7 @@ export default function HydrantMap() {
         }
       }
       setMessage("Scheda aperta sulla posizione GPS. Dettagli indirizzo non disponibili.");
-    } catch (err) {
+    } catch {
       setMessage("Scheda aperta sulla posizione GPS. Tocca la mappa solo per correggere.");
     }
   }
@@ -285,6 +285,11 @@ export default function HydrantMap() {
 
     if (!form.code.trim()) {
       setMessage("Inserisci il codice identificativo dell'idrante.");
+      return;
+    }
+
+    if (!form.street.trim()) {
+      setMessage("Inserisci la via.");
       return;
     }
 
@@ -352,6 +357,9 @@ export default function HydrantMap() {
         .single();
 
       if (error) {
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
+          throw new Error("Esiste già un idrante censito con questo codice.");
+        }
         throw error;
       }
 
