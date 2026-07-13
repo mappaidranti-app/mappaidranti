@@ -513,38 +513,32 @@ export default function HydrantMap() {
       </MapContainer>
 
       {/* Header compatto - solo logo, titolo e utilities */}
-      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-3">
-        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/80 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30">
-              <Siren size={16} aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-bold tracking-tight text-slate-900">IDRANTYA</h1>
-              <p className="truncate text-[10px] font-medium text-slate-500">{message}</p>
-            </div>
+      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex justify-center p-3">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30">
+            <Siren size={16} aria-hidden="true" />
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={findClosestHydrants}
-              disabled={!userPosition || hydrants.length === 0}
-              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
-              aria-label="Cerca idranti vicini"
-              title="Cerca idranti vicini"
-            >
-              <Search size={15} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={locateUser}
-              className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
-              aria-label="Centra sulla posizione utente"
-              title="Centra sulla posizione utente"
-            >
-              <LocateFixed size={15} aria-hidden="true" />
-            </button>
-          </div>
+          <span className="hidden text-sm font-bold tracking-tight text-slate-900 sm:block">IDRANTYA</span>
+          <div className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={findClosestHydrants}
+            disabled={!userPosition || hydrants.length === 0}
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Cerca idranti vicini"
+            title="Cerca idranti vicini"
+          >
+            <Search size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={locateUser}
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
+            aria-label="Centra sulla posizione utente"
+            title="Centra sulla posizione utente"
+          >
+            <LocateFixed size={15} aria-hidden="true" />
+          </button>
         </div>
       </section>
 
