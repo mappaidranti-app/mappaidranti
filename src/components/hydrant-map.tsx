@@ -16,6 +16,7 @@ import {
   Crosshair,
   Database,
   ImageUp,
+  Loader2,
   LocateFixed,
   MapPinPlus,
   Save,
@@ -607,24 +608,24 @@ export default function HydrantMap() {
             </p>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Identificazione</h3>
-            <Field label="Codice idrante">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Identificazione</h3>
+            <Field label="Codice idrante" required>
               <input
                 required
                 value={form.code}
                 onChange={(event) => setForm({ ...form, code: event.target.value })}
                 placeholder="Es. IDR-2026-001"
-                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-5">
               <Field label="Comune">
                 <input
                   disabled
                   value={municipalityId ? "Rilevato in automatico" : "Non disponibile"}
-                  className="h-11 w-full rounded-md border border-slate-200 bg-slate-100 text-slate-500 px-3 text-sm outline-none"
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-100 text-slate-500 px-4 text-base outline-none"
                 />
               </Field>
               <Field label="Frazione / Località">
@@ -632,7 +633,7 @@ export default function HydrantMap() {
                   value={form.hamlet}
                   onChange={(event) => setForm({ ...form, hamlet: event.target.value })}
                   placeholder="Es. Centro Storico"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
                 />
               </Field>
             </div>
@@ -641,11 +642,10 @@ export default function HydrantMap() {
               <div className="col-span-2">
                 <Field label="Via">
                   <input
-                    required
                     value={form.street}
                     onChange={(event) => setForm({ ...form, street: event.target.value })}
                     placeholder="Es. Via Roma"
-                    className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
                   />
                 </Field>
               </div>
@@ -655,25 +655,25 @@ export default function HydrantMap() {
                     value={form.street_number}
                     onChange={(event) => setForm({ ...form, street_number: event.target.value })}
                     placeholder="Es. 15/A"
-                    className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
+                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
                   />
                 </Field>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Tipologia</h3>
-            <div className="flex gap-4">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Tipologia</h3>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
               {["Soprasuolo", "Sottosuolo", "Parete"].map((typeOption) => (
-                <label key={typeOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <label key={typeOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                   <input
                     type="radio"
                     name="type"
                     value={typeOption}
                     checked={form.type === typeOption}
                     onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
-                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
                   />
                   {typeOption}
                 </label>
@@ -681,11 +681,11 @@ export default function HydrantMap() {
             </div>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Attacchi</h3>
-            <div className="flex gap-4">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Attacchi</h3>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
               {["UNI 45", "UNI 70", "UNI 100"].map((connection) => (
-                <label key={connection} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <label key={connection} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                   <input
                     type="checkbox"
                     checked={form.connections.includes(connection)}
@@ -696,7 +696,7 @@ export default function HydrantMap() {
                         setForm({ ...form, connections: form.connections.filter((c) => c !== connection) });
                       }
                     }}
-                    className="h-4 w-4 text-red-600 rounded focus:ring-red-500"
+                    className="h-6 w-6 text-red-600 rounded border-slate-300 focus:ring-red-500"
                   />
                   {connection}
                 </label>
@@ -704,18 +704,18 @@ export default function HydrantMap() {
             </div>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Stato Funzionale</h3>
-            <div className="flex flex-col gap-2">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato Funzionale</h3>
+            <div className="flex flex-col gap-4">
               {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
-                <label key={statusOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <label key={statusOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                   <input
                     type="radio"
                     name="status"
                     value={statusOption}
                     checked={form.status === statusOption}
                     onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
-                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
                   />
                   {statusOption}
                 </label>
@@ -723,48 +723,48 @@ export default function HydrantMap() {
             </div>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Cartello di Segnalazione</h3>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Cartello di Segnalazione</h3>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+              <label className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                 <input
                   type="radio"
                   name="sign_present"
                   checked={form.sign_present === true}
                   onChange={() => setForm({ ...form, sign_present: true })}
-                  className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
                 />
                 Presente
               </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+              <label className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                 <input
                   type="radio"
                   name="sign_present"
                   checked={form.sign_present === false}
                   onChange={() => setForm({ ...form, sign_present: false })}
-                  className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
                 />
                 Assente
               </label>
             </div>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Accessibilità</h3>
-            <div className="flex flex-col gap-2">
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Accessibilità</h3>
+            <div className="flex flex-col gap-4">
               {[
                 "Accessibile a tutti i mezzi",
                 "Accessibile ai camion (strada > 3,5m)",
                 "Solo mezzi leggeri"
               ].map((accessOption) => (
-                <label key={accessOption} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                <label key={accessOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
                   <input
                     type="radio"
                     name="accessibility"
                     value={accessOption}
                     checked={form.accessibility === accessOption}
                     onChange={() => setForm({ ...form, accessibility: accessOption })}
-                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
                   />
                   {accessOption}
                 </label>
@@ -772,27 +772,19 @@ export default function HydrantMap() {
             </div>
           </div>
 
-          <Field label="Note">
-            <textarea
-              value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              rows={4}
-              placeholder="Accessibilita, pressione, manutenzioni, riferimenti..."
-              className="w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-700 focus:ring-2 focus:ring-red-700/15"
-            />
-          </Field>
-
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Fotografie Obbligatorie</h3>
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Documentazione Fotografica <span className="text-red-500 ml-1" aria-hidden="true">*</span></h3>
             <div className="grid grid-cols-2 gap-4">
-              <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-center text-sm text-slate-600 transition hover:bg-slate-100">
+              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400">
                 {form.photoCloseUp ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={URL.createObjectURL(form.photoCloseUp)} alt="Ravvicinata" className="h-16 w-full object-contain mb-2 rounded" />
+                  <img src={URL.createObjectURL(form.photoCloseUp)} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
                 ) : (
-                  <ImageUp size={22} aria-hidden="true" className="mb-2" />
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                    <ImageUp size={24} aria-hidden="true" />
+                  </div>
                 )}
-                <span className="line-clamp-2 font-medium">Ravvicinata</span>
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700">Ravvicinata</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -804,14 +796,16 @@ export default function HydrantMap() {
                 />
               </label>
 
-              <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-center text-sm text-slate-600 transition hover:bg-slate-100">
+              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400">
                 {form.photoPanoramic ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={URL.createObjectURL(form.photoPanoramic)} alt="Panoramica" className="h-16 w-full object-contain mb-2 rounded" />
+                  <img src={URL.createObjectURL(form.photoPanoramic)} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
                 ) : (
-                  <ImageUp size={22} aria-hidden="true" className="mb-2" />
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                    <ImageUp size={24} aria-hidden="true" />
+                  </div>
                 )}
-                <span className="line-clamp-2 font-medium">Panoramica</span>
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700">Panoramica</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -825,13 +819,35 @@ export default function HydrantMap() {
             </div>
           </div>
 
+          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Note Aggiuntive</h3>
+            <Field label="Dettagli operativi">
+              <textarea
+                value={form.notes}
+                onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                rows={4}
+                placeholder="Accessibilita, pressione, manutenzioni, riferimenti..."
+                className="w-full resize-none rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+              />
+            </Field>
+          </div>
+
           <button
             type="submit"
             disabled={isSaving}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-sm font-semibold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-base font-bold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-70"
           >
-            <Save size={18} aria-hidden="true" />
-            {isSaving ? "Salvataggio..." : "Salva idrante"}
+            {isSaving ? (
+              <>
+                <Loader2 size={22} className="animate-spin" aria-hidden="true" />
+                Salvataggio in corso...
+              </>
+            ) : (
+              <>
+                <Save size={22} aria-hidden="true" />
+                Salva idrante
+              </>
+            )}
           </button>
         </form>
       </aside>
@@ -839,10 +855,13 @@ export default function HydrantMap() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-2 block text-sm font-semibold text-slate-800">
+        {label}
+        {required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
+      </span>
       {children}
     </label>
   );
