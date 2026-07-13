@@ -513,17 +513,17 @@ export default function HydrantMap() {
       </MapContainer>
 
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-3 sm:p-5">
-        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-2xl shadow-blue-900/10 backdrop-blur-xl transition-all">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-blue-500/30">
-              <Siren size={22} aria-hidden="true" />
+        <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-2xl shadow-blue-900/10 backdrop-blur-xl transition-all md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-3 md:gap-4">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 md:h-11 md:w-11">
+              <Siren size={20} aria-hidden="true" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="truncate text-base font-semibold tracking-tight md:text-xl">Mappa Idranti</h1>
               <p className="truncate text-xs text-slate-600 md:text-sm">{message}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex w-full shrink-0 items-center justify-between gap-2 md:w-auto md:justify-end">
             <button
               type="button"
               onClick={findClosestHydrants}
@@ -538,10 +538,10 @@ export default function HydrantMap() {
               type="button"
               onClick={createHydrantAtCurrentPosition}
               disabled={!userPosition}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 hover:from-cyan-400 hover:to-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 hover:from-cyan-400 hover:to-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50 md:flex-none md:px-4"
             >
-              <MapPinPlus size={18} aria-hidden="true" />
-              <span className="whitespace-nowrap">Nuovo idrante qui</span>
+              <MapPinPlus size={18} className="shrink-0" aria-hidden="true" />
+              <span className="truncate">Nuovo idrante</span>
             </button>
             <button
               type="button"
