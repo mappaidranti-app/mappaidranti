@@ -512,45 +512,47 @@ export default function HydrantMap() {
         })}
       </MapContainer>
 
-      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-3 sm:p-5">
-        <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-2xl shadow-blue-900/10 backdrop-blur-xl transition-all md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-3 md:gap-4">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 md:h-11 md:w-11">
-              <Siren size={20} aria-hidden="true" />
+      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] p-2 sm:p-4">
+        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/70 px-3 py-2 shadow-2xl shadow-blue-900/10 backdrop-blur-xl transition-all sm:px-4 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-blue-500/30 sm:h-10 sm:w-10 sm:rounded-xl">
+              <Siren size={16} aria-hidden="true" className="sm:hidden" />
+              <Siren size={18} aria-hidden="true" className="hidden sm:block" />
             </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-semibold tracking-tight md:text-xl">Mappa Idranti</h1>
-              <p className="truncate text-xs text-slate-600 md:text-sm">{message}</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold tracking-tight sm:text-base md:text-lg">Mappa Idranti</h1>
+              <p className="hidden truncate text-xs text-slate-600 sm:block">{message}</p>
             </div>
           </div>
-          <div className="flex w-full shrink-0 items-center justify-between gap-2 md:w-auto md:justify-end">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={findClosestHydrants}
               disabled={!userPosition || hydrants.length === 0}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50 sm:h-10 sm:w-10 sm:rounded-xl"
               aria-label="Cerca idranti vicini"
               title="Cerca idranti vicini"
             >
-              <Search size={19} aria-hidden="true" />
+              <Search size={16} aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={createHydrantAtCurrentPosition}
               disabled={!userPosition}
-              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-105 hover:from-cyan-400 hover:to-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50 md:flex-none md:px-4"
+              className="flex h-8 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-2.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/25 transition-all hover:scale-105 hover:from-cyan-400 hover:to-blue-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50 sm:h-10 sm:rounded-xl sm:px-4 sm:text-sm"
             >
-              <MapPinPlus size={18} className="shrink-0" aria-hidden="true" />
-              <span className="truncate">Nuovo idrante</span>
+              <MapPinPlus size={15} className="shrink-0 sm:hidden" aria-hidden="true" />
+              <MapPinPlus size={18} className="hidden shrink-0 sm:block" aria-hidden="true" />
+              <span className="whitespace-nowrap">Nuovo idrante</span>
             </button>
             <button
               type="button"
               onClick={locateUser}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:scale-105 hover:border-blue-300 hover:text-blue-600 active:scale-95 sm:h-10 sm:w-10 sm:rounded-xl"
               aria-label="Centra sulla posizione utente"
               title="Centra sulla posizione utente"
             >
-              <LocateFixed size={19} aria-hidden="true" />
+              <LocateFixed size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
