@@ -519,6 +519,7 @@ export default function HydrantMap() {
             <Siren size={16} aria-hidden="true" />
           </div>
           <span className="hidden text-sm font-bold tracking-tight text-slate-900 sm:block">IDRANTYA</span>
+          <span className="sr-only">{message}</span>
           <div className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" aria-hidden="true" />
           <button
             type="button"
