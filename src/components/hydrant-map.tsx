@@ -123,10 +123,12 @@ export default function HydrantMap() {
   const [draftPosition, setDraftPosition] = useState<{
     latitude: number;
     longitude: number;
+    accuracy?: number;
   } | null>(null);
   const [userPosition, setUserPosition] = useState<{
     latitude: number;
     longitude: number;
+    accuracy?: number;
   } | null>(null);
   const [form, setForm] = useState<HydrantFormState>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -157,6 +159,7 @@ export default function HydrantMap() {
         setUserPosition({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         });
         setMessage("Posizione rilevata. Premi Nuovo idrante qui per aprire la scheda.");
       },
@@ -214,6 +217,7 @@ export default function HydrantMap() {
         setUserPosition({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         });
         setMessage("Mappa centrata sulla posizione corrente.");
       },
@@ -222,14 +226,41 @@ export default function HydrantMap() {
     );
   }
 
-  function createHydrantAtCurrentPosition() {
+  async function createHydrantAtCurrentPosition() {
     if (!userPosition) {
       setMessage("Posizione GPS non ancora disponibile.");
       return;
     }
 
     setDraftPosition(userPosition);
-    setMessage("Scheda aperta sulla posizione GPS. Tocca la mappa solo per correggere.");
+    setMessage("Scheda aperta sulla posizione GPS. Recupero indirizzo in corso...");
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userPosition.latitude}&lon=${userPosition.longitude}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.address) {
+          const address = data.address;
+          const street = address.road || "";
+          const street_number = address.house_number || "";
+          const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
+          
+          setForm(prev => ({
+            ...prev,
+            street,
+            street_number,
+            hamlet
+          }));
+          setMessage("Indirizzo recuperato con successo da GPS.");
+          return;
+        }
+      }
+      setMessage("Scheda aperta sulla posizione GPS. Dettagli indirizzo non disponibili.");
+    } catch (err) {
+      setMessage("Scheda aperta sulla posizione GPS. Tocca la mappa solo per correggere.");
+    }
   }
 
   function correctDraftPosition(position: { latitude: number; longitude: number }) {
@@ -353,10 +384,6 @@ export default function HydrantMap() {
     setMapBounds(boundsPoints);
     setMessage(`Trovati i ${closest.length} idranti più vicini (entro ${Math.round(closest[closest.length - 1].distance)}m).`);
   }
-
-  const selectedCoordinates = draftPosition
-    ? `${draftPosition.latitude.toFixed(5)}, ${draftPosition.longitude.toFixed(5)}`
-    : "Nessun punto selezionato";
 
   return (
     <main className="relative h-screen overflow-hidden bg-slate-50 text-slate-950">
@@ -549,9 +576,19 @@ export default function HydrantMap() {
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <MapPinPlus size={16} aria-hidden="true" />
-              Coordinate selezionate
+              Coordinate e Precisione
             </div>
-            <p className="mt-1 font-mono text-sm text-slate-950">{selectedCoordinates}</p>
+            <p className="mt-1 font-mono text-sm text-slate-950">
+              {draftPosition ? (
+                <>
+                  Lat: {draftPosition.latitude.toFixed(5)}, Lon: {draftPosition.longitude.toFixed(5)}
+                  <br />
+                  Precisione GPS: {draftPosition.accuracy ? `± ${Math.round(draftPosition.accuracy)} metri` : "N/D"}
+                </>
+              ) : (
+                "Nessun punto selezionato"
+              )}
+            </p>
           </div>
 
           <div className="space-y-4">
