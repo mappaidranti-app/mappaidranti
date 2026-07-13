@@ -50,7 +50,8 @@ const emptyForm: HydrantFormState = {
   sign_present: null,
   accessibility: "",
   notes: "",
-  photo: null,
+  photoCloseUp: null,
+  photoPanoramic: null,
 };
 
 const hydrantIcon = L.divIcon({
@@ -286,36 +287,51 @@ export default function HydrantMap() {
       return;
     }
 
+    if (!form.photoCloseUp || !form.photoPanoramic) {
+      setMessage("Scatta sia la foto ravvicinata che la foto panoramica.");
+      return;
+    }
+
     if (!supabase) {
       setMessage("Supabase non configurato: aggiungi le variabili ambiente.");
       return;
     }
 
     setIsSaving(true);
-    setMessage("Salvataggio scheda tecnica...");
+    setMessage("Salvataggio scheda tecnica e foto...");
 
     try {
       let photoUrl: string | null = null;
+      let notesWithPhoto = form.notes.trim();
 
-      if (form.photo) {
-        const path = buildPhotoPath(form.photo, form.code);
-        const { error: uploadError } = await supabase.storage
-          .from("hydrant-photos")
-          .upload(path, form.photo, { upsert: false });
+      const pathPanoramic = buildPhotoPath(form.photoPanoramic, form.code + '-panoramica');
+      const { error: uploadErrorPanoramic } = await supabase.storage
+        .from("hydrant-photos")
+        .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
 
-        if (uploadError) {
-          throw uploadError;
-        }
+      if (uploadErrorPanoramic) throw uploadErrorPanoramic;
 
-        const { data } = supabase.storage.from("hydrant-photos").getPublicUrl(path);
-        photoUrl = data.publicUrl;
-      }
+      const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
+      photoUrl = dataPanoramic.publicUrl;
+
+      const pathCloseUp = buildPhotoPath(form.photoCloseUp, form.code + '-ravvicinata');
+      const { error: uploadErrorCloseUp } = await supabase.storage
+        .from("hydrant-photos")
+        .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
+
+      if (uploadErrorCloseUp) throw uploadErrorCloseUp;
+
+      const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
+      
+      notesWithPhoto = notesWithPhoto 
+        ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${dataCloseUp.publicUrl}` 
+        : `[Foto Ravvicinata]: ${dataCloseUp.publicUrl}`;
 
       const payload = {
         code: form.code.trim(),
         type: form.type,
         status: form.status,
-        notes: form.notes.trim() || null,
+        notes: notesWithPhoto || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         photo_url: photoUrl,
@@ -766,23 +782,48 @@ export default function HydrantMap() {
             />
           </Field>
 
-          <Field label="Foto">
-            <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm text-slate-600 transition hover:bg-slate-100">
-              <ImageUp size={22} aria-hidden="true" />
-              <span className="mt-2 line-clamp-2">
-                {form.photo ? form.photo.name : "Carica una foto nel bucket hydrant-photos"}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                onChange={(event) =>
-                  setForm({ ...form, photo: event.target.files?.[0] ?? null })
-                }
-              />
-            </label>
-          </Field>
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 border-b pb-2">Fotografie Obbligatorie</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-center text-sm text-slate-600 transition hover:bg-slate-100">
+                {form.photoCloseUp ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={URL.createObjectURL(form.photoCloseUp)} alt="Ravvicinata" className="h-16 w-full object-contain mb-2 rounded" />
+                ) : (
+                  <ImageUp size={22} aria-hidden="true" className="mb-2" />
+                )}
+                <span className="line-clamp-2 font-medium">Ravvicinata</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setForm({ ...form, photoCloseUp: event.target.files?.[0] ?? null })
+                  }
+                />
+              </label>
+
+              <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-center text-sm text-slate-600 transition hover:bg-slate-100">
+                {form.photoPanoramic ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={URL.createObjectURL(form.photoPanoramic)} alt="Panoramica" className="h-16 w-full object-contain mb-2 rounded" />
+                ) : (
+                  <ImageUp size={22} aria-hidden="true" className="mb-2" />
+                )}
+                <span className="line-clamp-2 font-medium">Panoramica</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setForm({ ...form, photoPanoramic: event.target.files?.[0] ?? null })
+                  }
+                />
+              </label>
+            </div>
+          </div>
 
           <button
             type="submit"
