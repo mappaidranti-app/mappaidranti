@@ -483,40 +483,70 @@ export default function HydrantMap() {
           >
             <Popup minWidth={220}>
               <article className="space-y-2 text-sm text-slate-800">
-                {hydrant.photo_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={hydrant.photo_url}
-                    alt={`Foto idrante ${hydrant.code}`}
-                    className="h-32 w-full rounded-md object-cover"
-                  />
+                {/* Codice */}
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Codice</span>
+                  <h3 className="text-base font-bold text-slate-950 leading-tight">{hydrant.code}</h3>
+                </div>
+
+                {/* Via e numero civico */}
+                {(hydrant.street || hydrant.street_number) && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ubicazione</span>
+                    <p className="text-sm font-medium text-slate-700 leading-snug">
+                      {hydrant.street}
+                      {hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
+                    </p>
+                  </div>
                 )}
+
+                {/* Tipologia */}
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Codice
-                  </p>
-                  <h3 className="text-base font-semibold text-slate-950">{hydrant.code}</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tipologia</span>
+                  <p className="text-sm font-medium text-slate-800">{TYPE_LABELS[hydrant.type]}</p>
                 </div>
-                <dl className="grid grid-cols-2 gap-2">
+
+                {/* Attacchi */}
+                {hydrant.connections && hydrant.connections.length > 0 && (
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Tipo
-                    </dt>
-                    <dd>{TYPE_LABELS[hydrant.type]}</dd>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Attacchi</span>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {hydrant.connections.join(" • ")}
+                    </p>
                   </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Stato
-                    </dt>
-                    <dd>{STATUS_LABELS[hydrant.status]}</dd>
-                  </div>
-                </dl>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    Note
-                  </p>
-                  <p className="whitespace-pre-wrap">{hydrant.notes || "Nessuna nota inserita."}</p>
+                )}
+
+                {/* Stato funzionale */}
+                <div className="pt-1">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    hydrant.status === "Funzionante"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : hydrant.status === "Non funzionante"
+                      ? "bg-rose-50 text-rose-700 border border-rose-200"
+                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      hydrant.status === "Funzionante"
+                        ? "bg-emerald-500"
+                        : hydrant.status === "Non funzionante"
+                        ? "bg-rose-500"
+                        : "bg-amber-500"
+                    }`} />
+                    {STATUS_LABELS[hydrant.status]}
+                  </span>
                 </div>
+
+                {/* Foto */}
+                {hydrant.photo_url && (
+                  <div className="pt-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={hydrant.photo_url}
+                      alt={`Foto idrante ${hydrant.code}`}
+                      className="h-28 w-full rounded-lg object-cover shadow-sm border border-slate-100"
+                    />
+                  </div>
+                )}
               </article>
             </Popup>
             <Tooltip direction="top" offset={[0, -24]}>
