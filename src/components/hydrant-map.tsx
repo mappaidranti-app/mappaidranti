@@ -264,6 +264,7 @@ export default function HydrantMap() {
 
     setDraftPosition(userPosition);
     setMessage("Scheda aperta sulla posizione GPS. Recupero indirizzo in corso...");
+    setCurrentMunicipality(null);
 
     try {
       const response = await fetch(
@@ -296,14 +297,45 @@ export default function HydrantMap() {
     }
   }
 
-  function correctDraftPosition(position: { latitude: number; longitude: number }) {
+  async function correctDraftPosition(position: { latitude: number; longitude: number }) {
     if (!draftPosition) {
       setMessage("Premi Nuovo idrante qui prima di correggere manualmente la posizione.");
       return;
     }
 
     setDraftPosition(position);
-    setMessage("Posizione corretta manualmente sulla mappa.");
+    setMessage("Posizione corretta manualmente sulla mappa. Recupero indirizzo...");
+    setCurrentMunicipality(null);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.address) {
+          const address = data.address;
+          const street = address.road || "";
+          const street_number = address.house_number || "";
+          const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
+          
+          setForm(prev => ({
+            ...prev,
+            street,
+            street_number,
+            hamlet
+          }));
+          if (hamlet) {
+            setCurrentMunicipality(hamlet);
+          }
+          setMessage("Posizione e indirizzo aggiornati.");
+          return;
+        }
+      }
+      setMessage("Posizione corretta manualmente. Dettagli indirizzo non disponibili.");
+    } catch {
+      setMessage("Posizione corretta manualmente. Errore nel recupero dell'indirizzo.");
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -736,9 +768,10 @@ export default function HydrantMap() {
             <div className="grid grid-cols-1 gap-5">
               <Field label="Comune">
                 <input
-                  disabled
-                  value={municipalityId ? "Rilevato in automatico" : "Non disponibile"}
-                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-100 text-slate-500 px-4 text-base outline-none"
+                  value={currentMunicipality || ""}
+                  onChange={(event) => setCurrentMunicipality(event.target.value)}
+                  placeholder="Ricerca Comune..."
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
                 />
               </Field>
               <Field label="Frazione / Località">
