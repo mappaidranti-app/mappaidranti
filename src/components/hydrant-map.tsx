@@ -140,15 +140,42 @@ export default function HydrantMap() {
   const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null);
   const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set());
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
+  const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
 
   const stats = useMemo(
     () => ({
       total: hydrants.length,
-      operative: hydrants.filter((hydrant) => hydrant.status === "Funzionante").length,
+      working: hydrants.filter((hydrant) => hydrant.status === "Funzionante").length,
+      broken: hydrants.filter((hydrant) => hydrant.status === "Non funzionante").length,
       review: hydrants.filter((hydrant) => hydrant.status === "Da verificare").length,
     }),
     [hydrants],
   );
+
+  useEffect(() => {
+    if (!userPosition) return;
+    const { latitude, longitude } = userPosition;
+    async function reverseGeocodeUser() {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.address) {
+            const address = data.address;
+            const municipality = address.city || address.town || address.village || address.hamlet || address.municipality || "";
+            if (municipality) {
+              setCurrentMunicipality(municipality);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Errore nel reverse geocoding della posizione utente:", error);
+      }
+    }
+    reverseGeocodeUser();
+  }, [userPosition]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -248,6 +275,9 @@ export default function HydrantMap() {
           const street = address.road || "";
           const street_number = address.house_number || "";
           const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
+          if (hamlet) {
+            setCurrentMunicipality(hamlet);
+          }
           
           setForm(prev => ({
             ...prev,
@@ -568,6 +598,9 @@ export default function HydrantMap() {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Catasto operativo</p>
                 <h2 className="text-base font-bold text-slate-900">Scheda tecnica</h2>
+                <p className="text-xs font-semibold text-red-600 mt-0.5">
+                  {currentMunicipality ? `Comune di ${currentMunicipality}` : "Ricerca Comune..."}
+                </p>
               </div>
             </div>
             {draftPosition && (
@@ -584,10 +617,16 @@ export default function HydrantMap() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 border-b border-slate-200 px-4 py-3">
-          <Stat icon={<Database size={16} />} label="Totale" value={stats.total} />
-          <Stat icon={<ShieldCheck size={16} />} label="Operativi" value={stats.operative} />
-          <Stat icon={<Crosshair size={16} />} label="Verifica" value={stats.review} />
+        <div className="border-b border-slate-200 px-4 py-3 bg-slate-50/50">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+            Statistiche {currentMunicipality ? `Comune di ${currentMunicipality}` : ""}
+          </p>
+          <div className="grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
+            <Stat icon={<Database size={16} />} label="Totale idranti" value={stats.total} />
+            <Stat icon={<ShieldCheck size={16} />} label="Funzionanti" value={stats.working} />
+            <Stat icon={<X size={16} />} label="Non funzionanti" value={stats.broken} />
+            <Stat icon={<Crosshair size={16} />} label="Da verificare" value={stats.review} />
+          </div>
         </div>
 
         {!isSupabaseConfigured && (
