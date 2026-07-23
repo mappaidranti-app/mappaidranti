@@ -695,21 +695,30 @@ export default function HydrantMap() {
 
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <MapPinPlus size={16} aria-hidden="true" />
-              Coordinate e Precisione
+              Posizione GPS
             </div>
-            <p className="mt-1 font-mono text-sm text-slate-950">
+            <div className="mt-2 space-y-2 text-sm text-slate-950">
               {draftPosition ? (
                 <>
-                  Lat: {draftPosition.latitude.toFixed(5)}, Lon: {draftPosition.longitude.toFixed(5)}
-                  <br />
-                  Precisione GPS: {draftPosition.accuracy ? `± ${Math.round(draftPosition.accuracy)} metri` : "N/D"}
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Latitudine:</span>
+                    <span className="font-mono">{draftPosition.latitude.toFixed(6)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Longitudine:</span>
+                    <span className="font-mono">{draftPosition.longitude.toFixed(6)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Precisione GPS:</span>
+                    <span>{draftPosition.accuracy ? `±${Math.round(draftPosition.accuracy)} metri` : "N/D"}</span>
+                  </div>
                 </>
               ) : (
-                "Nessun punto selezionato"
+                <p className="text-slate-500 italic">Acquisizione posizione in corso...</p>
               )}
-            </p>
+            </div>
           </div>
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
