@@ -629,7 +629,7 @@ export default function HydrantMap() {
       {/* Header compatto - solo logo, titolo e utilities */}
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex justify-center p-3">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
             <Siren size={16} aria-hidden="true" />
           </div>
           <span className="hidden text-sm font-bold tracking-tight text-slate-900 sm:block">IDRANTYA</span>
@@ -664,7 +664,7 @@ export default function HydrantMap() {
             type="button"
             onClick={createHydrantAtCurrentPosition}
             disabled={!userPosition}
-            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3.5 text-sm font-bold text-white shadow-2xl shadow-red-500/40 transition-all hover:scale-105 hover:from-red-400 hover:to-rose-500 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-3.5 text-sm font-bold text-white shadow-2xl shadow-blue-600/30 transition-all hover:scale-105 hover:from-blue-500 hover:to-indigo-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
           >
             <MapPinPlus size={20} className="shrink-0" aria-hidden="true" />
             Nuovo idrante
@@ -672,17 +672,17 @@ export default function HydrantMap() {
         </div>
       )}
 
-      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-slate-200/80 bg-white shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl">
+      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl">
         <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30">
+              <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
                 <MapPinPlus size={16} aria-hidden="true" />
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Catasto operativo</p>
                 <h2 className="text-base font-bold text-slate-900">Scheda tecnica</h2>
-                <p className="text-xs font-semibold text-red-600 mt-0.5">
+                <p className="text-xs font-semibold text-blue-700 mt-0.5">
                   {currentMunicipality ? `Comune di ${currentMunicipality}` : "Ricerca Comune..."}
                 </p>
               </div>
@@ -701,7 +701,7 @@ export default function HydrantMap() {
           </div>
         </div>
 
-        <div className="border-b border-slate-200 px-4 py-3 bg-slate-50/50">
+        <div className="border-b border-slate-200 px-4 py-3 bg-white">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
             Statistiche {currentMunicipality ? `Comune di ${currentMunicipality}` : ""}
           </p>
@@ -726,7 +726,7 @@ export default function HydrantMap() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <MapPinPlus size={16} aria-hidden="true" />
               Posizione GPS
@@ -761,7 +761,7 @@ export default function HydrantMap() {
                 value={form.code}
                 onChange={(event) => setForm({ ...form, code: event.target.value })}
                 placeholder="Es. IDR-2026-001"
-                className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
               />
             </Field>
 
@@ -771,7 +771,7 @@ export default function HydrantMap() {
                   value={currentMunicipality || ""}
                   onChange={(event) => setCurrentMunicipality(event.target.value)}
                   placeholder="Ricerca Comune..."
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                 />
               </Field>
               <Field label="Frazione / Località">
@@ -779,7 +779,7 @@ export default function HydrantMap() {
                   value={form.hamlet}
                   onChange={(event) => setForm({ ...form, hamlet: event.target.value })}
                   placeholder="Es. Centro Storico"
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                 />
               </Field>
             </div>
@@ -791,7 +791,7 @@ export default function HydrantMap() {
                     value={form.street}
                     onChange={(event) => setForm({ ...form, street: event.target.value })}
                     placeholder="Es. Via Roma"
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
                 </Field>
               </div>
@@ -801,7 +801,7 @@ export default function HydrantMap() {
                     value={form.street_number}
                     onChange={(event) => setForm({ ...form, street_number: event.target.value })}
                     placeholder="Es. 15/A"
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
                 </Field>
               </div>
@@ -819,7 +819,7 @@ export default function HydrantMap() {
                     value={typeOption}
                     checked={form.type === typeOption}
                     onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
-                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
+                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {typeOption}
                 </label>
@@ -842,7 +842,7 @@ export default function HydrantMap() {
                         setForm({ ...form, connections: form.connections.filter((c) => c !== connection) });
                       }
                     }}
-                    className="h-6 w-6 text-red-600 rounded border-slate-300 focus:ring-red-500"
+                    className="h-6 w-6 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   />
                   {connection}
                 </label>
@@ -861,7 +861,7 @@ export default function HydrantMap() {
                     value={statusOption}
                     checked={form.status === statusOption}
                     onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
-                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
+                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {statusOption}
                 </label>
@@ -878,7 +878,7 @@ export default function HydrantMap() {
                   name="sign_present"
                   checked={form.sign_present === true}
                   onChange={() => setForm({ ...form, sign_present: true })}
-                  className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
+                  className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                 />
                 Presente
               </label>
@@ -888,7 +888,7 @@ export default function HydrantMap() {
                   name="sign_present"
                   checked={form.sign_present === false}
                   onChange={() => setForm({ ...form, sign_present: false })}
-                  className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
+                  className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                 />
                 Assente
               </label>
@@ -910,7 +910,7 @@ export default function HydrantMap() {
                     value={accessOption}
                     checked={form.accessibility === accessOption}
                     onChange={() => setForm({ ...form, accessibility: accessOption })}
-                    className="h-6 w-6 text-red-600 focus:ring-red-500 border-slate-300"
+                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {accessOption}
                 </label>
