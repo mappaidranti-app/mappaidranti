@@ -34,6 +34,7 @@ const STATUS_LABELS: Record<HydrantStatus, string> = {
   "Non funzionante": "Non funzionante",
   "Da verificare": "Da verificare",
 };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TYPE_LABELS: Record<HydrantType, string> = {
   Soprasuolo: "Soprasuolo",
   Sottosuolo: "Sottosuolo",
@@ -483,33 +484,23 @@ export default function HydrantMap() {
           >
             <Popup minWidth={220}>
               <article className="space-y-2 text-sm text-slate-800">
-                {/* Codice */}
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Codice</span>
-                  <h3 className="text-base font-bold text-slate-950 leading-tight">{hydrant.code}</h3>
-                </div>
+                {/* Titolo */}
+                <h3 className="text-sm font-bold text-slate-900 leading-tight uppercase tracking-wider">
+                  {hydrant.code ? `IDRANTE ${hydrant.code}` : "IDRANTE"}
+                </h3>
 
                 {/* Via e numero civico */}
                 {(hydrant.street || hydrant.street_number) && (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ubicazione</span>
-                    <p className="text-sm font-medium text-slate-700 leading-snug">
-                      {hydrant.street}
-                      {hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
-                    </p>
-                  </div>
+                  <p className="text-sm font-medium text-slate-700 leading-snug">
+                    {hydrant.street}
+                    {hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
+                  </p>
                 )}
-
-                {/* Tipologia */}
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tipologia</span>
-                  <p className="text-sm font-medium text-slate-800">{TYPE_LABELS[hydrant.type]}</p>
-                </div>
 
                 {/* Attacchi */}
                 {hydrant.connections && hydrant.connections.length > 0 && (
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Attacchi</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attacchi:</span>
                     <p className="text-sm font-semibold text-slate-800">
                       {hydrant.connections.join(" • ")}
                     </p>
@@ -517,8 +508,9 @@ export default function HydrantMap() {
                 )}
 
                 {/* Stato funzionale */}
-                <div className="pt-1">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Stato:</span>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold mt-0.5 ${
                     hydrant.status === "Funzionante"
                       ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                       : hydrant.status === "Non funzionante"
@@ -547,6 +539,36 @@ export default function HydrantMap() {
                     />
                   </div>
                 )}
+
+                {/* Pulsante Apri scheda */}
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftPosition({
+                        latitude: hydrant.latitude,
+                        longitude: hydrant.longitude,
+                      });
+                      setForm({
+                        code: hydrant.code,
+                        hamlet: hydrant.hamlet || "",
+                        street: hydrant.street || "",
+                        street_number: hydrant.street_number || "",
+                        type: hydrant.type,
+                        connections: hydrant.connections || [],
+                        status: hydrant.status,
+                        sign_present: hydrant.sign_present !== undefined ? hydrant.sign_present : null,
+                        accessibility: hydrant.accessibility || "",
+                        notes: hydrant.notes || "",
+                        photoCloseUp: null,
+                        photoPanoramic: null,
+                      });
+                    }}
+                    className="w-full text-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-1.5 transition"
+                  >
+                    Apri scheda
+                  </button>
+                </div>
               </article>
             </Popup>
             <Tooltip direction="top" offset={[0, -24]}>
