@@ -142,6 +142,7 @@ export default function HydrantMap() {
   const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set());
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
+  const [currentProvince, setCurrentProvince] = useState<string>("");
 
   const stats = useMemo(
     () => ({
@@ -168,6 +169,10 @@ export default function HydrantMap() {
             const municipality = address.city || address.town || address.village || address.hamlet || address.municipality || "";
             if (municipality) {
               setCurrentMunicipality(municipality);
+            }
+            const province = address.county || address.state_district || "";
+            if (province) {
+              setCurrentProvince(province);
             }
           }
         }
@@ -265,6 +270,7 @@ export default function HydrantMap() {
     setDraftPosition(userPosition);
     setMessage("Scheda aperta sulla posizione GPS. Recupero indirizzo in corso...");
     setCurrentMunicipality(null);
+    setCurrentProvince("");
 
     try {
       const response = await fetch(
@@ -279,6 +285,10 @@ export default function HydrantMap() {
           const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
           if (hamlet) {
             setCurrentMunicipality(hamlet);
+          }
+          const province = address.county || address.state_district || "";
+          if (province) {
+            setCurrentProvince(province);
           }
           
           setForm(prev => ({
@@ -306,6 +316,7 @@ export default function HydrantMap() {
     setDraftPosition(position);
     setMessage("Posizione corretta manualmente sulla mappa. Recupero indirizzo...");
     setCurrentMunicipality(null);
+    setCurrentProvince("");
 
     try {
       const response = await fetch(
@@ -327,6 +338,10 @@ export default function HydrantMap() {
           }));
           if (hamlet) {
             setCurrentMunicipality(hamlet);
+          }
+          const province = address.county || address.state_district || "";
+          if (province) {
+            setCurrentProvince(province);
           }
           setMessage("Posizione e indirizzo aggiornati.");
           return;
@@ -429,6 +444,8 @@ export default function HydrantMap() {
       setHydrants((current) => [data as Hydrant, ...current]);
       setDraftPosition(null);
       setForm(emptyForm);
+      setCurrentMunicipality(null);
+      setCurrentProvince("");
       setMessage("Idrante salvato su Supabase.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Salvataggio non riuscito.");
@@ -766,14 +783,28 @@ export default function HydrantMap() {
             </Field>
 
             <div className="grid grid-cols-1 gap-5">
-              <Field label="Comune">
-                <input
-                  value={currentMunicipality || ""}
-                  onChange={(event) => setCurrentMunicipality(event.target.value)}
-                  placeholder="Ricerca Comune..."
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                />
-              </Field>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <Field label="Comune">
+                    <input
+                      value={currentMunicipality || ""}
+                      onChange={(event) => setCurrentMunicipality(event.target.value)}
+                      placeholder="Ricerca Comune..."
+                      className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    />
+                  </Field>
+                </div>
+                <div className="col-span-1">
+                  <Field label="Provincia">
+                    <input
+                      value={currentProvince}
+                      onChange={(event) => setCurrentProvince(event.target.value)}
+                      placeholder="Es. VR"
+                      className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    />
+                  </Field>
+                </div>
+              </div>
               <Field label="Frazione / Località">
                 <input
                   value={form.hamlet}
