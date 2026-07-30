@@ -361,11 +361,6 @@ export default function HydrantMap() {
       return;
     }
 
-    if (!form.code.trim()) {
-      setMessage("Inserisci il codice identificativo dell'idrante.");
-      return;
-    }
-
     if (!form.street.trim()) {
       setMessage("Inserisci la via.");
       return;
@@ -385,10 +380,39 @@ export default function HydrantMap() {
     setMessage("Salvataggio scheda tecnica e foto...");
 
     try {
+      // 1. Salvataggio idrante senza codice e senza foto (il DB genera il codice)
+      const payload = {
+        type: form.type,
+        status: form.status,
+        notes: form.notes.trim() || null,
+        latitude: draftPosition.latitude,
+        longitude: draftPosition.longitude,
+        municipality_id: municipalityId,
+        codice_istat: currentMunicipality || null,
+        hamlet: form.hamlet.trim() || null,
+        street: form.street.trim() || null,
+        street_number: form.street_number.trim() || null,
+        connections: form.connections,
+        sign_present: form.sign_present,
+        accessibility: form.accessibility || null,
+      };
+
+      const { data: newHydrant, error: insertError } = await supabase
+        .from("hydrants")
+        .insert(payload)
+        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // 2. Upload foto usando il codice appena generato
+      const generatedCode = newHydrant.code;
       let photoUrl: string | null = null;
       let notesWithPhoto = form.notes.trim();
 
-      const pathPanoramic = buildPhotoPath(form.photoPanoramic, form.code + '-panoramica');
+      const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
       const { error: uploadErrorPanoramic } = await supabase.storage
         .from("hydrant-photos")
         .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
@@ -398,7 +422,7 @@ export default function HydrantMap() {
       const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
       photoUrl = dataPanoramic.publicUrl;
 
-      const pathCloseUp = buildPhotoPath(form.photoCloseUp, form.code + '-ravvicinata');
+      const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
       const { error: uploadErrorCloseUp } = await supabase.storage
         .from("hydrant-photos")
         .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
@@ -411,37 +435,20 @@ export default function HydrantMap() {
         ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${dataCloseUp.publicUrl}` 
         : `[Foto Ravvicinata]: ${dataCloseUp.publicUrl}`;
 
-      const payload = {
-        code: form.code.trim(),
-        type: form.type,
-        status: form.status,
-        notes: notesWithPhoto || null,
-        latitude: draftPosition.latitude,
-        longitude: draftPosition.longitude,
-        photo_url: photoUrl,
-        municipality_id: municipalityId,
-        hamlet: form.hamlet.trim() || null,
-        street: form.street.trim() || null,
-        street_number: form.street_number.trim() || null,
-        connections: form.connections,
-        sign_present: form.sign_present,
-        accessibility: form.accessibility || null,
-      };
-
-      const { data, error } = await supabase
+      // 3. Aggiornamento idrante con foto caricate
+      const { data: updatedHydrant, error: updateError } = await supabase
         .from("hydrants")
-        .insert(payload)
+        .update({
+          photo_url: photoUrl,
+          notes: notesWithPhoto || null
+        })
+        .eq("id", newHydrant.id)
         .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
         .single();
 
-      if (error) {
-        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
-          throw new Error("Esiste già un idrante censito con questo codice.");
-        }
-        throw error;
-      }
+      if (updateError) throw updateError;
 
-      setHydrants((current) => [data as Hydrant, ...current]);
+      setHydrants((current) => [updatedHydrant as Hydrant, ...current]);
       setDraftPosition(null);
       setForm(emptyForm);
       setCurrentMunicipality(null);
@@ -770,17 +777,11 @@ export default function HydrantMap() {
             </div>
           </div>
 
-          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Identificazione</h3>
-            <Field label="Codice idrante" required>
-              <input
-                required
-                value={form.code}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-                placeholder="Es. IDR-2026-001"
-                className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-              />
-            </Field>
+          <div className="grid grid-cols-1 gap-5 border-t border-slate-200 pt-6">
+            <h3 className="text-sm font-semibold text-slate-800 flex items-center">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 mr-2 text-xs">2</span>
+              Identificazione
+            </h3>
 
             <div className="grid grid-cols-1 gap-5">
               <div className="grid grid-cols-3 gap-4">
