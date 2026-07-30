@@ -143,6 +143,7 @@ export default function HydrantMap() {
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const stats = useMemo(
     () => ({
@@ -268,6 +269,7 @@ export default function HydrantMap() {
     }
 
     setDraftPosition(userPosition);
+    setIsDrawerOpen(true);
     setMessage("Scheda aperta sulla posizione GPS. Recupero indirizzo in corso...");
     setCurrentMunicipality(null);
     setCurrentProvince("");
@@ -314,6 +316,7 @@ export default function HydrantMap() {
     }
 
     setDraftPosition(position);
+    setIsDrawerOpen(true);
     setMessage("Posizione corretta manualmente sulla mappa. Recupero indirizzo...");
     setCurrentMunicipality(null);
     setCurrentProvince("");
@@ -450,6 +453,7 @@ export default function HydrantMap() {
 
       setHydrants((current) => [updatedHydrant as Hydrant, ...current]);
       setDraftPosition(null);
+      setIsDrawerOpen(false);
       setForm(emptyForm);
       setCurrentMunicipality(null);
       setCurrentProvince("");
@@ -605,6 +609,7 @@ export default function HydrantMap() {
                         latitude: hydrant.latitude,
                         longitude: hydrant.longitude,
                       });
+                      setIsDrawerOpen(true);
                       setForm({
                         code: hydrant.code,
                         hamlet: hydrant.hamlet || "",
@@ -681,9 +686,12 @@ export default function HydrantMap() {
         </div>
       </section>
 
-      {/* FAB Nuovo idrante - sempre visibile, mai coperto */}
+      {/* FAB Nuovo idrante - posizionato a sinistra con safe-area su mobile */}
       {!draftPosition && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 md:bottom-8 md:left-8 md:translate-x-0">
+        <div 
+          className="pointer-events-none absolute z-[400] md:z-[500] left-4 md:left-8"
+          style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+        >
           <button
             type="button"
             onClick={createHydrantAtCurrentPosition}
@@ -696,8 +704,14 @@ export default function HydrantMap() {
         </div>
       )}
 
-      <aside className="absolute inset-x-0 bottom-0 z-[500] max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl">
-        <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-md">
+      <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[85vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-in-out md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"}`}>
+        <div 
+          className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 pt-5 pb-4 backdrop-blur-md md:pt-4 md:cursor-auto cursor-pointer"
+          onClick={() => setIsDrawerOpen(prev => !prev)}
+        >
+          {/* Maniglia per il drawer mobile */}
+          <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-300 rounded-full" />
+          
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
@@ -714,7 +728,11 @@ export default function HydrantMap() {
             {draftPosition && (
               <button
                 type="button"
-                onClick={() => setDraftPosition(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraftPosition(null);
+                  setIsDrawerOpen(false);
+                }}
                 className="grid h-9 w-9 place-items-center rounded-md border border-slate-300 text-slate-700 transition hover:bg-slate-100"
                 aria-label="Annulla selezione"
                 title="Annulla selezione"
@@ -725,7 +743,8 @@ export default function HydrantMap() {
           </div>
         </div>
 
-        <div className="border-b border-slate-200 px-4 py-3 bg-white">
+        <div className="overflow-y-auto flex-1">
+          <div className="border-b border-slate-200 px-4 py-3 bg-white">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
             Statistiche {currentMunicipality ? `Comune di ${currentMunicipality}` : ""}
           </p>
@@ -1028,6 +1047,7 @@ export default function HydrantMap() {
             )}
           </button>
         </form>
+        </div>
       </aside>
     </main>
   );
