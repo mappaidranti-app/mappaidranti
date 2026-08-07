@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -655,7 +655,7 @@ export default function HydrantMap() {
         })}
       </MapContainer>
 
-      {/* Header compatto - solo logo, titolo e utilities */}
+      {/* Header compatto - logo, utilities e pulsante nuovo idrante */}
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex justify-center p-3">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
@@ -683,35 +683,24 @@ export default function HydrantMap() {
           >
             <LocateFixed size={15} aria-hidden="true" />
           </button>
+          {!draftPosition && (
+            <button
+              type="button"
+              onClick={createHydrantAtCurrentPosition}
+              disabled={!userPosition}
+              className="flex h-8 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 px-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-600 active:scale-95 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
+              aria-label="Nuovo idrante"
+              title="Nuovo idrante qui (usa posizione GPS)"
+            >
+              <MapPinPlus size={15} className="shrink-0" aria-hidden="true" />
+              <span className="hidden sm:inline">Nuovo</span>
+            </button>
+          )}
         </div>
       </section>
 
-      {/* FAB Nuovo idrante - posizionato a sinistra con safe-area su mobile */}
-      {!draftPosition && (
-        <div 
-          className="pointer-events-none absolute z-[400] md:z-[500] left-4 md:left-8"
-          style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
-        >
-          <button
-            type="button"
-            onClick={createHydrantAtCurrentPosition}
-            disabled={!userPosition}
-            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-3.5 text-sm font-bold text-white shadow-2xl shadow-blue-600/30 transition-all hover:scale-105 hover:from-blue-500 hover:to-indigo-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
-          >
-            <MapPinPlus size={20} className="shrink-0" aria-hidden="true" />
-            Nuovo idrante
-          </button>
-        </div>
-      )}
-
-      <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[85vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-in-out md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"}`}>
-        <div 
-          className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 pt-5 pb-4 backdrop-blur-md md:pt-4 md:cursor-auto cursor-pointer"
-          onClick={() => setIsDrawerOpen(prev => !prev)}
-        >
-          {/* Maniglia per il drawer mobile */}
-          <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-300 rounded-full" />
-          
+      <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[90vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"}`}>
+        <DrawerHandle isOpen={isDrawerOpen} onToggle={() => setIsDrawerOpen(prev => !prev)}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
@@ -741,7 +730,7 @@ export default function HydrantMap() {
               </button>
             )}
           </div>
-        </div>
+        </DrawerHandle>
 
         <div className="overflow-y-auto flex-1">
           <div className="border-b border-slate-200 px-4 py-3 bg-white">
@@ -861,16 +850,16 @@ export default function HydrantMap() {
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Tipologia</h3>
-            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
               {["Soprasuolo", "Sottosuolo", "Parete"].map((typeOption) => (
-                <label key={typeOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+                <label key={typeOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                   <input
                     type="radio"
                     name="type"
                     value={typeOption}
                     checked={form.type === typeOption}
                     onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
-                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
+                    className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {typeOption}
                 </label>
@@ -880,9 +869,9 @@ export default function HydrantMap() {
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Attacchi</h3>
-            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
               {["UNI 45", "UNI 70", "UNI 100"].map((connection) => (
-                <label key={connection} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+                <label key={connection} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                   <input
                     type="checkbox"
                     checked={form.connections.includes(connection)}
@@ -893,7 +882,7 @@ export default function HydrantMap() {
                         setForm({ ...form, connections: form.connections.filter((c) => c !== connection) });
                       }
                     }}
-                    className="h-6 w-6 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    className="h-6 w-6 shrink-0 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   />
                   {connection}
                 </label>
@@ -903,16 +892,16 @@ export default function HydrantMap() {
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato Funzionale</h3>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
-                <label key={statusOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+                <label key={statusOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                   <input
                     type="radio"
                     name="status"
                     value={statusOption}
                     checked={form.status === statusOption}
                     onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
-                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
+                    className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {statusOption}
                 </label>
@@ -922,24 +911,24 @@ export default function HydrantMap() {
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Cartello di Segnalazione</h3>
-            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-              <label className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+              <label className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                 <input
                   type="radio"
                   name="sign_present"
                   checked={form.sign_present === true}
                   onChange={() => setForm({ ...form, sign_present: true })}
-                  className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
+                  className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                 />
                 Presente
               </label>
-              <label className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+              <label className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                 <input
                   type="radio"
                   name="sign_present"
                   checked={form.sign_present === false}
                   onChange={() => setForm({ ...form, sign_present: false })}
-                  className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
+                  className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                 />
                 Assente
               </label>
@@ -948,20 +937,20 @@ export default function HydrantMap() {
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Accessibilità</h3>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {[
                 "Accessibile a tutti i mezzi",
                 "Accessibile ai camion (strada > 3,5m)",
                 "Solo mezzi leggeri"
               ].map((accessOption) => (
-                <label key={accessOption} className="flex items-center gap-3 cursor-pointer text-base font-medium text-slate-700">
+                <label key={accessOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
                   <input
                     type="radio"
                     name="accessibility"
                     value={accessOption}
                     checked={form.accessibility === accessOption}
                     onChange={() => setForm({ ...form, accessibility: accessOption })}
-                    className="h-6 w-6 text-blue-600 focus:ring-blue-500 border-slate-300"
+                    className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                   />
                   {accessOption}
                 </label>
@@ -1029,27 +1018,83 @@ export default function HydrantMap() {
             </Field>
           </div>
 
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-base font-bold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-70"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 size={22} className="animate-spin" aria-hidden="true" />
-                Salvataggio in corso...
-              </>
-            ) : (
-              <>
-                <Save size={22} aria-hidden="true" />
-                Salva idrante
-              </>
-            )}
-          </button>
+          <div style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-base font-bold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-70"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 size={22} className="animate-spin" aria-hidden="true" />
+                  Salvataggio in corso...
+                </>
+              ) : (
+                <>
+                  <Save size={22} aria-hidden="true" />
+                  Salva idrante
+                </>
+              )}
+            </button>
+          </div>
         </form>
         </div>
       </aside>
     </main>
+  );
+}
+
+/** Drawer handle with touch drag support for mobile bottom sheet */
+function DrawerHandle({
+  isOpen,
+  onToggle,
+  children,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  const startY = useRef<number | null>(null);
+  const currentY = useRef<number | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+    currentY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    currentY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (startY.current === null || currentY.current === null) return;
+    const delta = currentY.current - startY.current;
+    const THRESHOLD = 50;
+
+    if (isOpen && delta > THRESHOLD) {
+      // Swipe down → close
+      onToggle();
+    } else if (!isOpen && delta < -THRESHOLD) {
+      // Swipe up → open
+      onToggle();
+    }
+
+    startY.current = null;
+    currentY.current = null;
+  }, [isOpen, onToggle]);
+
+  return (
+    <div
+      className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-5 pt-5 pb-4 backdrop-blur-md md:pt-4 md:cursor-auto cursor-pointer select-none touch-pan-y"
+      onClick={onToggle}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Drag handle pill for mobile */}
+      <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-slate-300 rounded-full" />
+      {children}
+    </div>
   );
 }
 
