@@ -1200,6 +1200,7 @@ export default function HydrantMap() {
 
               {/* Hidden Inputs located outside the clickable areas */}
               <input
+                id="photoCloseUpInput"
                 ref={photoCloseUpRef}
                 type="file"
                 accept="image/*"
@@ -1212,10 +1213,13 @@ export default function HydrantMap() {
                     console.log("File catturato (Ravvicinata):", { name: file.name, size: file.size, type: file.type });
                   }
                   setForm(prev => ({ ...prev, photoCloseUp: file }));
+                  // Reset the input value so selecting the same file or taking a new photo triggers onChange again
+                  event.target.value = '';
                 }}
               />
 
               <input
+                id="photoPanoramicInput"
                 ref={photoPanoramicRef}
                 type="file"
                 accept="image/*"
@@ -1228,6 +1232,8 @@ export default function HydrantMap() {
                     console.log("File catturato (Panoramica):", { name: file.name, size: file.size, type: file.type });
                   }
                   setForm(prev => ({ ...prev, photoPanoramic: file }));
+                  // Reset the input value so selecting the same file or taking a new photo triggers onChange again
+                  event.target.value = '';
                 }}
               />
             </div>
