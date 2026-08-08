@@ -164,6 +164,8 @@ export default function HydrantMap() {
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const photoCloseUpRef = useRef<HTMLInputElement>(null);
+  const photoPanoramicRef = useRef<HTMLInputElement>(null);
 
   const stats = useMemo(
     () => ({
@@ -419,8 +421,12 @@ export default function HydrantMap() {
         street_number: form.street_number.trim() || null,
         connections: form.connections,
         sign_present: form.sign_present,
-        accessibility: form.accessibility || null,
       };
+
+      console.log("=== DEBUG SALVATAGGIO IDRANTE ===");
+      console.log("Payload inviato a Supabase (Tabella hydrants):", payload);
+      console.log("Valore di form.photoCloseUp:", form.photoCloseUp);
+      console.log("Valore di form.photoPanoramic:", form.photoPanoramic);
 
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
@@ -1156,7 +1162,13 @@ export default function HydrantMap() {
               Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400">
+              <div
+                onClick={() => {
+                  console.log("Triggered click su input Ravvicinata");
+                  photoCloseUpRef.current?.click();
+                }}
+                className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
+              >
                 {form.photoCloseUp ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={URL.createObjectURL(form.photoCloseUp)} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
@@ -1166,18 +1178,15 @@ export default function HydrantMap() {
                   </div>
                 )}
                 <span className="line-clamp-2 text-sm font-semibold text-slate-700">Ravvicinata</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  onChange={(event) =>
-                    setForm({ ...form, photoCloseUp: event.target.files?.[0] ?? null })
-                  }
-                />
-              </label>
+              </div>
 
-              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400">
+              <div
+                onClick={() => {
+                  console.log("Triggered click su input Panoramica");
+                  photoPanoramicRef.current?.click();
+                }}
+                className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
+              >
                 {form.photoPanoramic ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={URL.createObjectURL(form.photoPanoramic)} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
@@ -1187,16 +1196,40 @@ export default function HydrantMap() {
                   </div>
                 )}
                 <span className="line-clamp-2 text-sm font-semibold text-slate-700">Panoramica</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  onChange={(event) =>
-                    setForm({ ...form, photoPanoramic: event.target.files?.[0] ?? null })
+              </div>
+
+              {/* Hidden Inputs located outside the clickable areas */}
+              <input
+                ref={photoCloseUpRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  console.log("Evento onChange (Ravvicinata) - files list:", event.target.files);
+                  const file = event.target.files?.[0] ?? null;
+                  if (file) {
+                    console.log("File catturato (Ravvicinata):", { name: file.name, size: file.size, type: file.type });
                   }
-                />
-              </label>
+                  setForm(prev => ({ ...prev, photoCloseUp: file }));
+                }}
+              />
+
+              <input
+                ref={photoPanoramicRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  console.log("Evento onChange (Panoramica) - files list:", event.target.files);
+                  const file = event.target.files?.[0] ?? null;
+                  if (file) {
+                    console.log("File catturato (Panoramica):", { name: file.name, size: file.size, type: file.type });
+                  }
+                  setForm(prev => ({ ...prev, photoPanoramic: file }));
+                }}
+              />
             </div>
           </div>
 
