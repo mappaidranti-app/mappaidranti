@@ -24,9 +24,10 @@ import {
   ShieldCheck,
   Siren,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import type { Hydrant, HydrantFormState, HydrantStatus, HydrantType } from "@/types/hydrant";
+import type { Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType } from "@/types/hydrant";
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
 const STATUS_LABELS: Record<HydrantStatus, string> = {
@@ -34,12 +35,24 @@ const STATUS_LABELS: Record<HydrantStatus, string> = {
   "Non funzionante": "Non funzionante",
   "Da verificare": "Da verificare",
 };
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const TYPE_LABELS: Record<HydrantType, string> = {
-  Soprasuolo: "Soprasuolo",
-  Sottosuolo: "Sottosuolo",
-  Parete: "Parete",
-};
+
+const SAMPLE_STREETS = [
+  "Via Roma",
+  "Via Garibaldi",
+  "Via Dante Alighieri",
+  "Corso Vittorio Emanuele",
+  "Via Giuseppe Mazzini",
+  "Via Stazione",
+  "Via Matteotti",
+  "Via Marconi",
+  "Via Verdi",
+  "Via Veneto",
+  "Via Nazionale",
+  "Via Cavour",
+  "Via Trieste",
+  "Via Milano",
+  "Via Torino",
+];
 
 const emptyForm: HydrantFormState = {
   code: "",
@@ -49,6 +62,13 @@ const emptyForm: HydrantFormState = {
   type: "Soprasuolo",
   connections: [],
   status: "Funzionante",
+  condition: "Buono",
+  dn: "DN 80",
+  caps_present: true,
+  caps_quantity: 2,
+  chains_present: true,
+  chains_quantity: 2,
+  attached_pit: false,
   sign_present: null,
   accessibility: "",
   notes: "",
@@ -227,7 +247,7 @@ export default function HydrantMap() {
 
       const { data, error } = await supabase
         .from("hydrants")
-        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -369,24 +389,26 @@ export default function HydrantMap() {
       return;
     }
 
-    if (!form.photoCloseUp || !form.photoPanoramic) {
-      setMessage("Scatta sia la foto ravvicinata che la foto panoramica.");
-      return;
-    }
-
     if (!supabase) {
       setMessage("Supabase non configurato: aggiungi le variabili ambiente.");
       return;
     }
 
     setIsSaving(true);
-    setMessage("Salvataggio scheda tecnica e foto...");
+    setMessage("Salvataggio scheda tecnica...");
 
     try {
-      // 1. Salvataggio idrante senza codice e senza foto (il DB genera il codice)
+      // 1. Salvataggio idrante con i nuovi campi tecnici
       const payload = {
         type: form.type,
         status: form.status,
+        condition: form.condition,
+        dn: form.dn || null,
+        caps_present: form.caps_present,
+        caps_quantity: form.caps_present ? form.caps_quantity : 0,
+        chains_present: form.chains_present,
+        chains_quantity: form.chains_present ? form.chains_quantity : 0,
+        attached_pit: form.attached_pit,
         notes: form.notes.trim() || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
@@ -403,55 +425,67 @@ export default function HydrantMap() {
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
         .single();
 
       if (insertError) {
         throw insertError;
       }
 
-      // 2. Upload foto usando il codice appena generato
+      // 2. Upload foto (se presenti) usando il codice generato
       const generatedCode = newHydrant.code;
       let photoUrl: string | null = null;
       let notesWithPhoto = form.notes.trim();
+      let photoUpdated = false;
 
-      const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
-      const { error: uploadErrorPanoramic } = await supabase.storage
-        .from("hydrant-photos")
-        .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
+      if (form.photoPanoramic) {
+        const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
+        const { error: uploadErrorPanoramic } = await supabase.storage
+          .from("hydrant-photos")
+          .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
 
-      if (uploadErrorPanoramic) throw uploadErrorPanoramic;
+        if (!uploadErrorPanoramic) {
+          const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
+          photoUrl = dataPanoramic.publicUrl;
+          photoUpdated = true;
+        }
+      }
 
-      const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
-      photoUrl = dataPanoramic.publicUrl;
+      if (form.photoCloseUp) {
+        const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
+        const { error: uploadErrorCloseUp } = await supabase.storage
+          .from("hydrant-photos")
+          .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
 
-      const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
-      const { error: uploadErrorCloseUp } = await supabase.storage
-        .from("hydrant-photos")
-        .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
+        if (!uploadErrorCloseUp) {
+          const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
+          notesWithPhoto = notesWithPhoto 
+            ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${dataCloseUp.publicUrl}` 
+            : `[Foto Ravvicinata]: ${dataCloseUp.publicUrl}`;
+          photoUpdated = true;
+        }
+      }
 
-      if (uploadErrorCloseUp) throw uploadErrorCloseUp;
+      let finalHydrant = newHydrant;
 
-      const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
-      
-      notesWithPhoto = notesWithPhoto 
-        ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${dataCloseUp.publicUrl}` 
-        : `[Foto Ravvicinata]: ${dataCloseUp.publicUrl}`;
+      // 3. Aggiornamento idrante se sono state caricate foto
+      if (photoUpdated) {
+        const { data: updatedHydrant, error: updateError } = await supabase
+          .from("hydrants")
+          .update({
+            photo_url: photoUrl || newHydrant.photo_url,
+            notes: notesWithPhoto || null
+          })
+          .eq("id", newHydrant.id)
+          .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+          .single();
 
-      // 3. Aggiornamento idrante con foto caricate
-      const { data: updatedHydrant, error: updateError } = await supabase
-        .from("hydrants")
-        .update({
-          photo_url: photoUrl,
-          notes: notesWithPhoto || null
-        })
-        .eq("id", newHydrant.id)
-        .select("id, code, type, status, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
-        .single();
+        if (!updateError && updatedHydrant) {
+          finalHydrant = updatedHydrant;
+        }
+      }
 
-      if (updateError) throw updateError;
-
-      setHydrants((current) => [updatedHydrant as Hydrant, ...current]);
+      setHydrants((current) => [finalHydrant as Hydrant, ...current]);
       setDraftPosition(null);
       setIsDrawerOpen(false);
       setForm(emptyForm);
@@ -618,6 +652,13 @@ export default function HydrantMap() {
                         type: hydrant.type,
                         connections: hydrant.connections || [],
                         status: hydrant.status,
+                        condition: hydrant.condition || "Buono",
+                        dn: hydrant.dn || "DN 80",
+                        caps_present: hydrant.caps_present !== undefined && hydrant.caps_present !== null ? hydrant.caps_present : true,
+                        caps_quantity: hydrant.caps_quantity ?? 2,
+                        chains_present: hydrant.chains_present !== undefined && hydrant.chains_present !== null ? hydrant.chains_present : true,
+                        chains_quantity: hydrant.chains_quantity ?? 2,
+                        attached_pit: hydrant.attached_pit !== undefined && hydrant.attached_pit !== null ? hydrant.attached_pit : false,
                         sign_present: hydrant.sign_present !== undefined ? hydrant.sign_present : null,
                         accessibility: hydrant.accessibility || "",
                         notes: hydrant.notes || "",
@@ -826,12 +867,11 @@ export default function HydrantMap() {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <Field label="Via">
-                  <input
+                <Field label="Via (Codificata)">
+                  <StreetCombobox
                     value={form.street}
-                    onChange={(event) => setForm({ ...form, street: event.target.value })}
-                    placeholder="Es. Via Roma"
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    onChange={(val) => setForm({ ...form, street: val })}
+                    placeholder="Seleziona o digita via..."
                   />
                 </Field>
               </div>
@@ -848,22 +888,155 @@ export default function HydrantMap() {
             </div>
           </div>
 
+          {/* Sezione Tipologia e Specifiche Tecniche */}
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Tipologia</h3>
-            <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-              {["Soprasuolo", "Sottosuolo", "Parete"].map((typeOption) => (
-                <label key={typeOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
-                  <input
-                    type="radio"
-                    name="type"
-                    value={typeOption}
-                    checked={form.type === typeOption}
-                    onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
-                    className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
-                  />
-                  {typeOption}
-                </label>
-              ))}
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Tipologia & Specifiche Tecniche</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-800">Tipo Idrante</label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+                  {["Soprasuolo", "Sottosuolo", "Parete"].map((typeOption) => (
+                    <label key={typeOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
+                      <input
+                        type="radio"
+                        name="type"
+                        value={typeOption}
+                        checked={form.type === typeOption}
+                        onChange={() => setForm({ ...form, type: typeOption as HydrantType })}
+                        className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
+                      />
+                      {typeOption}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Diametro Nominale (DN) */}
+              <Field label="Diametro Nominale (DN)">
+                <select
+                  value={form.dn}
+                  onChange={(e) => setForm({ ...form, dn: e.target.value })}
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base font-medium text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                >
+                  <option value="DN 80">DN 80 (Standard)</option>
+                  <option value="DN 100">DN 100</option>
+                  <option value="DN 150">DN 150</option>
+                  <option value="DN 200">DN 200</option>
+                </select>
+              </Field>
+
+              {/* Tappi */}
+              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
+                <span className="block text-sm font-semibold text-slate-800">Tappi di Chiusura</span>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="caps_present"
+                        checked={form.caps_present === true}
+                        onChange={() => setForm({ ...form, caps_present: true })}
+                        className="h-5 w-5 text-blue-600"
+                      />
+                      SI
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="caps_present"
+                        checked={form.caps_present === false}
+                        onChange={() => setForm({ ...form, caps_present: false })}
+                        className="h-5 w-5 text-blue-600"
+                      />
+                      NO
+                    </label>
+                  </div>
+                  {form.caps_present && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500">Quantità:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={form.caps_quantity}
+                        onChange={(e) => setForm({ ...form, caps_quantity: parseInt(e.target.value) || 0 })}
+                        className="h-10 w-16 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Catenelle */}
+              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
+                <span className="block text-sm font-semibold text-slate-800">Catenelle di Sicurezza</span>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="chains_present"
+                        checked={form.chains_present === true}
+                        onChange={() => setForm({ ...form, chains_present: true })}
+                        className="h-5 w-5 text-blue-600"
+                      />
+                      SI
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="chains_present"
+                        checked={form.chains_present === false}
+                        onChange={() => setForm({ ...form, chains_present: false })}
+                        className="h-5 w-5 text-blue-600"
+                      />
+                      NO
+                    </label>
+                  </div>
+                  {form.chains_present && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500">Quantità:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={form.chains_quantity}
+                        onChange={(e) => setForm({ ...form, chains_quantity: parseInt(e.target.value) || 0 })}
+                        className="h-10 w-16 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-900 outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pozzetto annesso */}
+              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
+                <span className="block text-sm font-semibold text-slate-800">Pozzetto Annesso</span>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="attached_pit"
+                      checked={form.attached_pit === true}
+                      onChange={() => setForm({ ...form, attached_pit: true })}
+                      className="h-5 w-5 text-blue-600"
+                    />
+                    SI
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="attached_pit"
+                      checked={form.attached_pit === false}
+                      onChange={() => setForm({ ...form, attached_pit: false })}
+                      className="h-5 w-5 text-blue-600"
+                    />
+                    NO
+                  </label>
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -890,22 +1063,42 @@ export default function HydrantMap() {
             </div>
           </div>
 
+          {/* Sezione Stato e Funzionalità */}
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato Funzionale</h3>
-            <div className="flex flex-col gap-2">
-              {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
-                <label key={statusOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
-                  <input
-                    type="radio"
-                    name="status"
-                    value={statusOption}
-                    checked={form.status === statusOption}
-                    onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
-                    className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
-                  />
-                  {statusOption}
-                </label>
-              ))}
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato & Conservazione</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-800">Stato Funzionale</label>
+                <div className="flex flex-col gap-2">
+                  {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
+                    <label key={statusOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
+                      <input
+                        type="radio"
+                        name="status"
+                        value={statusOption}
+                        checked={form.status === statusOption}
+                        onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
+                        className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
+                      />
+                      {statusOption}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stato di Conservazione (Nuovo / Buono / Pessimo) */}
+              <Field label="Stato di Conservazione">
+                <select
+                  value={form.condition}
+                  onChange={(e) => setForm({ ...form, condition: e.target.value as HydrantCondition })}
+                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base font-medium text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                >
+                  <option value="Nuovo">Nuovo</option>
+                  <option value="Buono">Buono</option>
+                  <option value="Pessimo">Pessimo</option>
+                </select>
+              </Field>
             </div>
           </div>
 
@@ -959,7 +1152,9 @@ export default function HydrantMap() {
           </div>
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Documentazione Fotografica <span className="text-red-500 ml-1" aria-hidden="true">*</span></h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
+              Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
+            </h3>
             <div className="grid grid-cols-2 gap-4">
               <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400">
                 {form.photoCloseUp ? (
@@ -1126,6 +1321,65 @@ function Stat({
         <span className="truncate">{label}</span>
       </div>
       <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+/** Searchable Street Combobox / Autocomplete */
+function StreetCombobox({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const filteredStreets = useMemo(() => {
+    if (!value.trim()) return SAMPLE_STREETS;
+    return SAMPLE_STREETS.filter((s) =>
+      s.toLowerCase().includes(value.toLowerCase())
+    );
+  }, [value]);
+
+  return (
+    <div className="relative">
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+          placeholder={placeholder || "Cerca o inserisci via..."}
+          className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 pr-10 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+        />
+        <ChevronDown
+          size={18}
+          className="pointer-events-none absolute right-3 text-slate-400"
+        />
+      </div>
+
+      {isOpen && filteredStreets.length > 0 && (
+        <ul className="absolute z-[600] mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg backdrop-blur-md">
+          {filteredStreets.map((street) => (
+            <li
+              key={street}
+              onMouseDown={() => {
+                onChange(street);
+                setIsOpen(false);
+              }}
+              className="cursor-pointer px-4 py-2 text-sm text-slate-800 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-100"
+            >
+              {street}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
