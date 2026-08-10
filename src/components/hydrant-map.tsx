@@ -447,16 +447,19 @@ export default function HydrantMap() {
       let notesWithPhoto = form.notes.trim();
       let photoUpdated = false;
 
+      // BUCKET NAME IN USE: "hydrant-photos"
       if (form.photoPanoramic) {
         try {
           const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
-          console.log("[IDRANTYA] Upload panoramica su path:", pathPanoramic);
+          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload panoramica su path:", pathPanoramic);
           const { error: uploadErrorPanoramic } = await supabase.storage
             .from("hydrant-photos")
             .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
 
           if (uploadErrorPanoramic) {
-            console.warn("[IDRANTYA] Upload panoramica fallito:", uploadErrorPanoramic.message);
+            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathPanoramic}\nErrore: ${uploadErrorPanoramic.message}\nDettaglio: ${JSON.stringify(uploadErrorPanoramic)}`;
+            console.warn("[IDRANTYA] Upload panoramica fallito:", errMsg);
+            alert("⚠️ Errore Upload Foto Panoramica:\n\n" + errMsg);
           } else {
             const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
             photoUrl = dataPanoramic.publicUrl;
@@ -464,20 +467,24 @@ export default function HydrantMap() {
             console.log("[IDRANTYA] Panoramica caricata:", photoUrl);
           }
         } catch (photoErr) {
+          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
           console.warn("[IDRANTYA] Eccezione upload panoramica:", photoErr);
+          alert("⚠️ Eccezione Upload Foto Panoramica:\n\n" + errMsg);
         }
       }
 
       if (form.photoCloseUp) {
         try {
           const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
-          console.log("[IDRANTYA] Upload ravvicinata su path:", pathCloseUp);
+          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload ravvicinata su path:", pathCloseUp);
           const { error: uploadErrorCloseUp } = await supabase.storage
             .from("hydrant-photos")
             .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
 
           if (uploadErrorCloseUp) {
-            console.warn("[IDRANTYA] Upload ravvicinata fallito:", uploadErrorCloseUp.message);
+            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathCloseUp}\nErrore: ${uploadErrorCloseUp.message}\nDettaglio: ${JSON.stringify(uploadErrorCloseUp)}`;
+            console.warn("[IDRANTYA] Upload ravvicinata fallito:", errMsg);
+            alert("⚠️ Errore Upload Foto Ravvicinata:\n\n" + errMsg);
           } else {
             const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
             const closeUpUrl = dataCloseUp.publicUrl;
@@ -488,7 +495,9 @@ export default function HydrantMap() {
             console.log("[IDRANTYA] Ravvicinata caricata:", closeUpUrl);
           }
         } catch (photoErr) {
+          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
           console.warn("[IDRANTYA] Eccezione upload ravvicinata:", photoErr);
+          alert("⚠️ Eccezione Upload Foto Ravvicinata:\n\n" + errMsg);
         }
       }
 
