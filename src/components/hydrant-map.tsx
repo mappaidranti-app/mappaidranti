@@ -400,7 +400,7 @@ export default function HydrantMap() {
     setMessage("Salvataggio scheda tecnica...");
 
     try {
-      // 1. Salvataggio idrante con i nuovi campi tecnici
+      // 1. Salvataggio record idrante (SOLO colonne verificate nel DB)
       const payload = {
         type: form.type,
         status: form.status,
@@ -415,99 +415,130 @@ export default function HydrantMap() {
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         municipality_id: municipalityId,
-        codice_istat: currentMunicipality || null,
         hamlet: form.hamlet.trim() || null,
         street: form.street.trim() || null,
         street_number: form.street_number.trim() || null,
         connections: form.connections,
         sign_present: form.sign_present,
+        photo_url: null as string | null,
       };
 
-      console.log("=== DEBUG SALVATAGGIO IDRANTE ===");
-      console.log("Payload inviato a Supabase (Tabella hydrants):", payload);
-      console.log("Valore di form.photoCloseUp:", form.photoCloseUp);
-      console.log("Valore di form.photoPanoramic:", form.photoPanoramic);
+      console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
+      console.log("Payload DB:", JSON.stringify(payload, null, 2));
+      console.log("photoCloseUp:", form.photoCloseUp ? `${form.photoCloseUp.name} (${form.photoCloseUp.size} bytes)` : "null");
+      console.log("photoPanoramic:", form.photoPanoramic ? `${form.photoPanoramic.name} (${form.photoPanoramic.size} bytes)` : "null");
 
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present")
         .single();
 
       if (insertError) {
-        throw insertError;
+        console.error("[IDRANTYA] Errore INSERT:", insertError);
+        throw new Error(`Errore DB: ${insertError.message} (code: ${insertError.code})`);
       }
 
-      // 2. Upload foto (se presenti) usando il codice generato
-      const generatedCode = newHydrant.code;
+      console.log("[IDRANTYA] Idrante inserito con successo, id:", newHydrant.id, "code:", newHydrant.code);
+
+      // 2. Upload foto — TOLLERANTE AI GUASTI: un errore foto non blocca il salvataggio
+      const generatedCode = newHydrant.code ?? newHydrant.id;
       let photoUrl: string | null = null;
       let notesWithPhoto = form.notes.trim();
       let photoUpdated = false;
 
       if (form.photoPanoramic) {
-        const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
-        const { error: uploadErrorPanoramic } = await supabase.storage
-          .from("hydrant-photos")
-          .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
+        try {
+          const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
+          console.log("[IDRANTYA] Upload panoramica su path:", pathPanoramic);
+          const { error: uploadErrorPanoramic } = await supabase.storage
+            .from("hydrant-photos")
+            .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
 
-        if (!uploadErrorPanoramic) {
-          const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
-          photoUrl = dataPanoramic.publicUrl;
-          photoUpdated = true;
+          if (uploadErrorPanoramic) {
+            console.warn("[IDRANTYA] Upload panoramica fallito:", uploadErrorPanoramic.message);
+          } else {
+            const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
+            photoUrl = dataPanoramic.publicUrl;
+            photoUpdated = true;
+            console.log("[IDRANTYA] Panoramica caricata:", photoUrl);
+          }
+        } catch (photoErr) {
+          console.warn("[IDRANTYA] Eccezione upload panoramica:", photoErr);
         }
       }
 
       if (form.photoCloseUp) {
-        const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
-        const { error: uploadErrorCloseUp } = await supabase.storage
-          .from("hydrant-photos")
-          .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
+        try {
+          const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
+          console.log("[IDRANTYA] Upload ravvicinata su path:", pathCloseUp);
+          const { error: uploadErrorCloseUp } = await supabase.storage
+            .from("hydrant-photos")
+            .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
 
-        if (!uploadErrorCloseUp) {
-          const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
-          notesWithPhoto = notesWithPhoto 
-            ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${dataCloseUp.publicUrl}` 
-            : `[Foto Ravvicinata]: ${dataCloseUp.publicUrl}`;
-          photoUpdated = true;
+          if (uploadErrorCloseUp) {
+            console.warn("[IDRANTYA] Upload ravvicinata fallito:", uploadErrorCloseUp.message);
+          } else {
+            const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
+            const closeUpUrl = dataCloseUp.publicUrl;
+            notesWithPhoto = notesWithPhoto
+              ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${closeUpUrl}`
+              : `[Foto Ravvicinata]: ${closeUpUrl}`;
+            photoUpdated = true;
+            console.log("[IDRANTYA] Ravvicinata caricata:", closeUpUrl);
+          }
+        } catch (photoErr) {
+          console.warn("[IDRANTYA] Eccezione upload ravvicinata:", photoErr);
         }
       }
 
       let finalHydrant = newHydrant;
 
-      // 3. Aggiornamento idrante se sono state caricate foto
+      // 3. Aggiornamento URL foto nel record (opzionale)
       if (photoUpdated) {
-        const { data: updatedHydrant, error: updateError } = await supabase
-          .from("hydrants")
-          .update({
-            photo_url: photoUrl || newHydrant.photo_url,
-            notes: notesWithPhoto || null
-          })
-          .eq("id", newHydrant.id)
-          .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
-          .single();
+        try {
+          const { data: updatedHydrant, error: updateError } = await supabase
+            .from("hydrants")
+            .update({
+              photo_url: photoUrl || newHydrant.photo_url,
+              notes: notesWithPhoto || null,
+            })
+            .eq("id", newHydrant.id)
+            .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present")
+            .single();
 
-        if (!updateError && updatedHydrant) {
-          finalHydrant = updatedHydrant;
+          if (updateError) {
+            console.warn("[IDRANTYA] Errore UPDATE foto:", updateError.message);
+          } else if (updatedHydrant) {
+            finalHydrant = updatedHydrant;
+          }
+        } catch (updateErr) {
+          console.warn("[IDRANTYA] Eccezione UPDATE foto:", updateErr);
         }
       }
 
+      // 4. Aggiorna UI e resetta form
       setHydrants((current) => [finalHydrant as Hydrant, ...current]);
       setDraftPosition(null);
       setIsDrawerOpen(false);
       setForm(emptyForm);
       setCurrentMunicipality(null);
       setCurrentProvince("");
-      
+
       // Clear file inputs in DOM
       if (photoCloseUpRef.current) photoCloseUpRef.current.value = "";
       if (photoPanoramicRef.current) photoPanoramicRef.current.value = "";
 
-      setMessage("Idrante salvato con successo!");
+      setMessage("✅ Idrante salvato con successo!");
       setTimeout(() => {
         setMessage("Tocca la mappa per censire un nuovo idrante.");
       }, 4000);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Salvataggio non riuscito.");
+      const msg = error instanceof Error ? error.message : JSON.stringify(error);
+      console.error("[IDRANTYA] Errore fatale handleSubmit:", msg);
+      // Alert visibile su mobile per debug immediato
+      alert("❌ Errore durante il salvataggio:\n\n" + msg);
+      setMessage("Salvataggio non riuscito: " + msg);
     } finally {
       setIsSaving(false);
     }
