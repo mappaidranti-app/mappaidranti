@@ -166,6 +166,8 @@ export default function HydrantMap() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const photoCloseUpRef = useRef<HTMLInputElement>(null);
   const photoPanoramicRef = useRef<HTMLInputElement>(null);
+  const [previewUrlCloseUp, setPreviewUrlCloseUp] = useState<string | null>(null);
+  const [previewUrlPanoramic, setPreviewUrlPanoramic] = useState<string | null>(null);
 
   const stats = useMemo(
     () => ({
@@ -534,9 +536,11 @@ export default function HydrantMap() {
       setCurrentMunicipality(null);
       setCurrentProvince("");
 
-      // Clear file inputs in DOM
+      // Clear file inputs in DOM and preview URLs
       if (photoCloseUpRef.current) photoCloseUpRef.current.value = "";
       if (photoPanoramicRef.current) photoPanoramicRef.current.value = "";
+      setPreviewUrlCloseUp(null);
+      setPreviewUrlPanoramic(null);
 
       setMessage("✅ Idrante salvato con successo!");
       setTimeout(() => {
@@ -1217,15 +1221,17 @@ export default function HydrantMap() {
                 }}
                 className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
               >
-                {form.photoCloseUp ? (
+                {previewUrlCloseUp ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={URL.createObjectURL(form.photoCloseUp)} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  <img src={previewUrlCloseUp} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
                 ) : (
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
                     <ImageUp size={24} aria-hidden="true" />
                   </div>
                 )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700">Ravvicinata</span>
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700">
+                  {previewUrlCloseUp ? "✅ Ravvicinata" : "Ravvicinata"}
+                </span>
               </div>
 
               <div
@@ -1235,18 +1241,20 @@ export default function HydrantMap() {
                 }}
                 className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
               >
-                {form.photoPanoramic ? (
+                {previewUrlPanoramic ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={URL.createObjectURL(form.photoPanoramic)} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  <img src={previewUrlPanoramic} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
                 ) : (
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
                     <ImageUp size={24} aria-hidden="true" />
                   </div>
                 )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700">Panoramica</span>
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700">
+                  {previewUrlPanoramic ? "✅ Panoramica" : "Panoramica"}
+                </span>
               </div>
 
-              {/* Hidden Inputs located outside the clickable areas */}
+              {/* Hidden Inputs — totally independent: separate id, ref, onChange */}
               <input
                 id="photoCloseUpInput"
                 ref={photoCloseUpRef}
@@ -1255,13 +1263,19 @@ export default function HydrantMap() {
                 capture="environment"
                 className="hidden"
                 onChange={(event) => {
-                  console.log("Evento onChange (Ravvicinata) - files list:", event.target.files);
+                  console.log("[INPUT-1] onChange Ravvicinata - files:", event.target.files);
                   const file = event.target.files?.[0] ?? null;
                   if (file) {
-                    console.log("File catturato (Ravvicinata):", { name: file.name, size: file.size, type: file.type });
+                    console.log("[INPUT-1] File catturato:", { name: file.name, size: file.size, type: file.type });
+                    // Build preview URL BEFORE resetting the input
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrlCloseUp(url);
+                    setForm(prev => ({ ...prev, photoCloseUp: file }));
+                  } else {
+                    setPreviewUrlCloseUp(null);
+                    setForm(prev => ({ ...prev, photoCloseUp: null }));
                   }
-                  setForm(prev => ({ ...prev, photoCloseUp: file }));
-                  // Reset the input value so selecting the same file or taking a new photo triggers onChange again
+                  // Reset so re-shooting the same photo triggers onChange again
                   event.target.value = '';
                 }}
               />
@@ -1274,13 +1288,19 @@ export default function HydrantMap() {
                 capture="environment"
                 className="hidden"
                 onChange={(event) => {
-                  console.log("Evento onChange (Panoramica) - files list:", event.target.files);
+                  console.log("[INPUT-2] onChange Panoramica - files:", event.target.files);
                   const file = event.target.files?.[0] ?? null;
                   if (file) {
-                    console.log("File catturato (Panoramica):", { name: file.name, size: file.size, type: file.type });
+                    console.log("[INPUT-2] File catturato:", { name: file.name, size: file.size, type: file.type });
+                    // Build preview URL BEFORE resetting the input
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrlPanoramic(url);
+                    setForm(prev => ({ ...prev, photoPanoramic: file }));
+                  } else {
+                    setPreviewUrlPanoramic(null);
+                    setForm(prev => ({ ...prev, photoPanoramic: null }));
                   }
-                  setForm(prev => ({ ...prev, photoPanoramic: file }));
-                  // Reset the input value so selecting the same file or taking a new photo triggers onChange again
+                  // Reset so re-shooting the same photo triggers onChange again
                   event.target.value = '';
                 }}
               />
