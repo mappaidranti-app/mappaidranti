@@ -497,7 +497,15 @@ export default function HydrantMap() {
       setForm(emptyForm);
       setCurrentMunicipality(null);
       setCurrentProvince("");
-      setMessage("Idrante salvato su Supabase.");
+      
+      // Clear file inputs in DOM
+      if (photoCloseUpRef.current) photoCloseUpRef.current.value = "";
+      if (photoPanoramicRef.current) photoPanoramicRef.current.value = "";
+
+      setMessage("Idrante salvato con successo!");
+      setTimeout(() => {
+        setMessage("Tocca la mappa per censire un nuovo idrante.");
+      }, 4000);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Salvataggio non riuscito.");
     } finally {
