@@ -136,7 +136,8 @@ function MapClickHandler({
 
 function buildPhotoPath(file: File, typeName: string) {
   const extension = file.name.split(".").pop() || "jpg";
-  return `hydrant_${typeName}_${Date.now()}.${extension}`;
+  const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+  return cleanFileName;
 }
 
 export default function HydrantMap() {
