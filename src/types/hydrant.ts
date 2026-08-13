@@ -48,7 +48,5 @@ export type HydrantFormState = {
   sign_present: boolean | null;
   accessibility: string;
   notes: string;
-  photoCloseUp: File | null;
-  photoPanoramic: File | null;
 };
 

@@ -71,9 +71,8 @@ const emptyForm: HydrantFormState = {
   attached_pit: false,
   sign_present: null,
   accessibility: "",
+  accessibility: "",
   notes: "",
-  photoCloseUp: null,
-  photoPanoramic: null,
 };
 
 const hydrantIcon = L.divIcon({
@@ -135,10 +134,9 @@ function MapClickHandler({
   return null;
 }
 
-function buildPhotoPath(file: File, code: string) {
+function buildPhotoPath(file: File, typeName: string) {
   const extension = file.name.split(".").pop() || "jpg";
-  const safeCode = code.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-") || "idrante";
-  return `${safeCode}-${crypto.randomUUID()}.${extension}`;
+  return `hydrant_${typeName}_${Date.now()}.${extension}`;
 }
 
 export default function HydrantMap() {
@@ -164,10 +162,10 @@ export default function HydrantMap() {
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const photoCloseUpRef = useRef<HTMLInputElement>(null);
-  const photoPanoramicRef = useRef<HTMLInputElement>(null);
-  const [previewUrlCloseUp, setPreviewUrlCloseUp] = useState<string | null>(null);
-  const [previewUrlPanoramic, setPreviewUrlPanoramic] = useState<string | null>(null);
+  const [fileRavvicinata, setFileRavvicinata] = useState<File | null>(null);
+  const [filePanoramica, setFilePanoramica] = useState<File | null>(null);
+  const [previewRavvicinata, setPreviewRavvicinata] = useState<string | null>(null);
+  const [previewPanoramica, setPreviewPanoramica] = useState<string | null>(null);
 
   const stats = useMemo(
     () => ({
@@ -423,12 +421,13 @@ export default function HydrantMap() {
         connections: form.connections,
         sign_present: form.sign_present,
         photo_url: null as string | null,
+        code: form.code.trim() || null,
       };
 
       console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
       console.log("Payload DB:", JSON.stringify(payload, null, 2));
-      console.log("photoCloseUp:", form.photoCloseUp ? `${form.photoCloseUp.name} (${form.photoCloseUp.size} bytes)` : "null");
-      console.log("photoPanoramic:", form.photoPanoramic ? `${form.photoPanoramic.name} (${form.photoPanoramic.size} bytes)` : "null");
+      console.log("fileRavvicinata:", fileRavvicinata ? `${fileRavvicinata.name} (${fileRavvicinata.size} bytes)` : "null");
+      console.log("filePanoramica:", filePanoramica ? `${filePanoramica.name} (${filePanoramica.size} bytes)` : "null");
 
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
@@ -450,13 +449,13 @@ export default function HydrantMap() {
       let photoUpdated = false;
 
       // BUCKET NAME IN USE: "hydrant-photos"
-      if (form.photoPanoramic) {
+      if (filePanoramica) {
         try {
-          const pathPanoramic = buildPhotoPath(form.photoPanoramic, generatedCode + '-panoramica');
+          const pathPanoramic = buildPhotoPath(filePanoramica, 'panoramica');
           console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload panoramica su path:", pathPanoramic);
           const { error: uploadErrorPanoramic } = await supabase.storage
             .from("hydrant-photos")
-            .upload(pathPanoramic, form.photoPanoramic, { upsert: false });
+            .upload(pathPanoramic, filePanoramica, { upsert: false });
 
           if (uploadErrorPanoramic) {
             const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathPanoramic}\nErrore: ${uploadErrorPanoramic.message}\nDettaglio: ${JSON.stringify(uploadErrorPanoramic)}`;
@@ -475,13 +474,13 @@ export default function HydrantMap() {
         }
       }
 
-      if (form.photoCloseUp) {
+      if (fileRavvicinata) {
         try {
-          const pathCloseUp = buildPhotoPath(form.photoCloseUp, generatedCode + '-ravvicinata');
+          const pathCloseUp = buildPhotoPath(fileRavvicinata, 'ravvicinata');
           console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload ravvicinata su path:", pathCloseUp);
           const { error: uploadErrorCloseUp } = await supabase.storage
             .from("hydrant-photos")
-            .upload(pathCloseUp, form.photoCloseUp, { upsert: false });
+            .upload(pathCloseUp, fileRavvicinata, { upsert: false });
 
           if (uploadErrorCloseUp) {
             const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathCloseUp}\nErrore: ${uploadErrorCloseUp.message}\nDettaglio: ${JSON.stringify(uploadErrorCloseUp)}`;
@@ -536,11 +535,11 @@ export default function HydrantMap() {
       setCurrentMunicipality(null);
       setCurrentProvince("");
 
-      // Clear file inputs in DOM and preview URLs
-      if (photoCloseUpRef.current) photoCloseUpRef.current.value = "";
-      if (photoPanoramicRef.current) photoPanoramicRef.current.value = "";
-      setPreviewUrlCloseUp(null);
-      setPreviewUrlPanoramic(null);
+      // Clear file inputs state
+      setFileRavvicinata(null);
+      setFilePanoramica(null);
+      setPreviewRavvicinata(null);
+      setPreviewPanoramica(null);
 
       setMessage("✅ Idrante salvato con successo!");
       setTimeout(() => {
@@ -1214,96 +1213,69 @@ export default function HydrantMap() {
               Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <div
-                onClick={() => {
-                  console.log("Triggered click su input Ravvicinata");
-                  photoCloseUpRef.current?.click();
-                }}
-                className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
-              >
-                {previewUrlCloseUp ? (
+              <label className="relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      setPreviewRavvicinata(url);
+                      setFileRavvicinata(file);
+                    } else {
+                      setPreviewRavvicinata(null);
+                      setFileRavvicinata(null);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+                {previewRavvicinata ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrlCloseUp} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
                 ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
                     <ImageUp size={24} aria-hidden="true" />
                   </div>
                 )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700">
-                  {previewUrlCloseUp ? "✅ Ravvicinata" : "Ravvicinata"}
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700 relative z-10 pointer-events-none">
+                  {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
                 </span>
-              </div>
+              </label>
 
-              <div
-                onClick={() => {
-                  console.log("Triggered click su input Panoramica");
-                  photoPanoramicRef.current?.click();
-                }}
-                className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400"
-              >
-                {previewUrlPanoramic ? (
+              <label className="relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      setPreviewPanoramica(url);
+                      setFilePanoramica(file);
+                    } else {
+                      setPreviewPanoramica(null);
+                      setFilePanoramica(null);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+                {previewPanoramica ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrlPanoramic} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
                 ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
                     <ImageUp size={24} aria-hidden="true" />
                   </div>
                 )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700">
-                  {previewUrlPanoramic ? "✅ Panoramica" : "Panoramica"}
+                <span className="line-clamp-2 text-sm font-semibold text-slate-700 relative z-10 pointer-events-none">
+                  {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
                 </span>
-              </div>
-
-              {/* Hidden Inputs — totally independent: separate id, ref, onChange */}
-              <input
-                id="photoCloseUpInput"
-                ref={photoCloseUpRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(event) => {
-                  console.log("[INPUT-1] onChange Ravvicinata - files:", event.target.files);
-                  const file = event.target.files?.[0] ?? null;
-                  if (file) {
-                    console.log("[INPUT-1] File catturato:", { name: file.name, size: file.size, type: file.type });
-                    // Build preview URL BEFORE resetting the input
-                    const url = URL.createObjectURL(file);
-                    setPreviewUrlCloseUp(url);
-                    setForm(prev => ({ ...prev, photoCloseUp: file }));
-                  } else {
-                    setPreviewUrlCloseUp(null);
-                    setForm(prev => ({ ...prev, photoCloseUp: null }));
-                  }
-                  // Reset so re-shooting the same photo triggers onChange again
-                  event.target.value = '';
-                }}
-              />
-
-              <input
-                id="photoPanoramicInput"
-                ref={photoPanoramicRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(event) => {
-                  console.log("[INPUT-2] onChange Panoramica - files:", event.target.files);
-                  const file = event.target.files?.[0] ?? null;
-                  if (file) {
-                    console.log("[INPUT-2] File catturato:", { name: file.name, size: file.size, type: file.type });
-                    // Build preview URL BEFORE resetting the input
-                    const url = URL.createObjectURL(file);
-                    setPreviewUrlPanoramic(url);
-                    setForm(prev => ({ ...prev, photoPanoramic: file }));
-                  } else {
-                    setPreviewUrlPanoramic(null);
-                    setForm(prev => ({ ...prev, photoPanoramic: null }));
-                  }
-                  // Reset so re-shooting the same photo triggers onChange again
-                  event.target.value = '';
-                }}
-              />
+              </label>
             </div>
           </div>
 
