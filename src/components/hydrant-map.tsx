@@ -1208,7 +1208,7 @@ export default function HydrantMap() {
 
       {/* Massive Bottom Button for NUOVO IDRANTE */}
       {!draftPosition && (
-        <div className="absolute inset-x-0 bottom-8 z-[400] flex justify-center px-4 pointer-events-none">
+        <div className="absolute inset-x-0 bottom-24 z-[500] flex justify-center px-4 pointer-events-none">
           <button
             type="button"
             onClick={handleNuovoIdrante}
