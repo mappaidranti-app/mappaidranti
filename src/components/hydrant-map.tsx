@@ -1123,7 +1123,7 @@ export default function HydrantMap() {
                   }}
                 />
                 {previewRavvicinata ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
                 ) : (
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
@@ -1155,7 +1155,7 @@ export default function HydrantMap() {
                   }}
                 />
                 {previewPanoramica ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
                 ) : (
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
