@@ -62,15 +62,13 @@ const emptyForm: HydrantFormState = {
   type: "Soprasuolo",
   connections: [],
   status: "Funzionante",
-  condition: "Buono",
-  dn: "DN 80",
-  caps_present: true,
-  caps_quantity: 2,
-  chains_present: true,
-  chains_quantity: 2,
-  attached_pit: false,
+  condition: "DISCRETO",
+  uni45Count: 0,
+  uni70Count: 0,
+  missingCaps: 0,
+  missingChains: 0,
+  hasCover: false,
   sign_present: null,
-  accessibility: "",
   accessibility: "",
   notes: "",
 };
@@ -285,98 +283,64 @@ export default function HydrantMap() {
     );
   }
 
-  async function createHydrantAtCurrentPosition() {
-    if (!userPosition) {
-      setMessage("Posizione GPS non ancora disponibile.");
-      return;
-    }
-
-    setDraftPosition(userPosition);
-    setIsDrawerOpen(true);
-    setMessage("Scheda aperta sulla posizione GPS. Recupero indirizzo in corso...");
-    setCurrentMunicipality(null);
-    setCurrentProvince("");
-
+  async function fetchAddress(lat: number, lon: number) {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userPosition.latitude}&lon=${userPosition.longitude}`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
       );
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.address) {
-          const address = data.address;
-          const street = address.road || "";
-          const street_number = address.house_number || "";
-          const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
-          if (hamlet) {
-            setCurrentMunicipality(hamlet);
-          }
-          const province = address.county || address.state_district || "";
-          if (province) {
-            setCurrentProvince(province);
-          }
-          
-          setForm(prev => ({
-            ...prev,
-            street,
-            street_number,
-            hamlet
-          }));
-          setMessage("Indirizzo recuperato con successo da GPS.");
-          return;
-        }
-      }
-      setMessage("Scheda aperta sulla posizione GPS. Dettagli indirizzo non disponibili.");
-    } catch {
-      setMessage("Scheda aperta sulla posizione GPS. Tocca la mappa solo per correggere.");
+      const data = await response.json();
+      
+      const comune = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || "";
+      const frazione = data.address?.hamlet || data.address?.suburb || "";
+      const strada = data.address?.road || data.address?.pedestrian || "";
+      const civico = data.address?.house_number || "";
+      const provinciaStr = data.address?.county || data.address?.province || "";
+
+      setForm((prev) => ({
+        ...prev,
+        hamlet: frazione,
+        street: strada,
+        street_number: civico,
+      }));
+      
+      setCurrentMunicipality(comune || "Comune non rilevato");
+      setCurrentProvince(provinciaStr);
+      setMessage("Indirizzo recuperato con successo.");
+    } catch (error) {
+      console.error("Reverse geocoding error:", error);
+      setMessage("Impossibile recuperare l'indirizzo. Inserisci i dati manualmente.");
     }
   }
 
-  async function correctDraftPosition(position: { latitude: number; longitude: number }) {
-    if (!draftPosition) {
-      setMessage("Premi Nuovo idrante qui prima di correggere manualmente la posizione.");
+  function handleNuovoIdrante() {
+    if (!navigator.geolocation) {
+      setMessage("Geolocalizzazione non supportata.");
+      setIsDrawerOpen(true);
       return;
     }
 
+    setMessage("Rilevamento posizione GPS in corso...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        setUserPosition({ ...coords, accuracy: position.coords.accuracy });
+        setDraftPosition(coords);
+        setIsDrawerOpen(true);
+        fetchAddress(coords.latitude, coords.longitude);
+      },
+      (error) => {
+        console.warn("Errore GPS:", error);
+        setMessage("Errore GPS. Tocca la mappa per inserire manualmente.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
+  async function correctDraftPosition(position: { latitude: number; longitude: number }) {
     setDraftPosition(position);
     setIsDrawerOpen(true);
-    setMessage("Posizione corretta manualmente sulla mappa. Recupero indirizzo...");
-    setCurrentMunicipality(null);
-    setCurrentProvince("");
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.address) {
-          const address = data.address;
-          const street = address.road || "";
-          const street_number = address.house_number || "";
-          const hamlet = address.city || address.town || address.village || address.hamlet || address.municipality || "";
-          
-          setForm(prev => ({
-            ...prev,
-            street,
-            street_number,
-            hamlet
-          }));
-          if (hamlet) {
-            setCurrentMunicipality(hamlet);
-          }
-          const province = address.county || address.state_district || "";
-          if (province) {
-            setCurrentProvince(province);
-          }
-          setMessage("Posizione e indirizzo aggiornati.");
-          return;
-        }
-      }
-      setMessage("Posizione corretta manualmente. Dettagli indirizzo non disponibili.");
-    } catch {
-      setMessage("Posizione corretta manualmente. Errore nel recupero dell'indirizzo.");
-    }
+    setMessage("Posizione impostata. Recupero indirizzo...");
+    fetchAddress(position.latitude, position.longitude);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -402,16 +366,21 @@ export default function HydrantMap() {
 
     try {
       // 1. Salvataggio record idrante (SOLO colonne verificate nel DB)
+      let calculatedDn = "";
+      if (form.uni45Count > 0) calculatedDn += `UNI 45 (${form.uni45Count}) `;
+      if (form.uni70Count > 0) calculatedDn += `UNI 70 (${form.uni70Count})`;
+      calculatedDn = calculatedDn.trim();
+
       const payload = {
         type: form.type,
         status: form.status,
         condition: form.condition,
-        dn: form.dn || null,
-        caps_present: form.caps_present,
-        caps_quantity: form.caps_present ? form.caps_quantity : 0,
-        chains_present: form.chains_present,
-        chains_quantity: form.chains_present ? form.chains_quantity : 0,
-        attached_pit: form.attached_pit,
+        dn: calculatedDn || null,
+        caps_present: form.missingCaps === 0,
+        caps_quantity: form.missingCaps,
+        chains_present: form.missingChains === 0,
+        chains_quantity: form.missingChains,
+        attached_pit: form.hasCover,
         notes: form.notes.trim() || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
@@ -579,18 +548,11 @@ export default function HydrantMap() {
     // Ordina per distanza
     withDistances.sort((a, b) => a.distance - b.distance);
 
-    // Prendi i 5 più vicini
-    const closest = withDistances.slice(0, 5);
-
-    setClosestHydrantsIds(new Set(closest.map((h) => h.id)));
-
-    // Imposta i bounds per includere utente e idranti trovati
-    const boundsPoints: L.LatLngTuple[] = [
-      [userPosition.latitude, userPosition.longitude],
-      ...closest.map((h) => [h.latitude, h.longitude] as L.LatLngTuple),
-    ];
-    setMapBounds(boundsPoints);
-    setMessage(`Trovati i ${closest.length} idranti più vicini (entro ${Math.round(closest[closest.length - 1].distance)}m).`);
+    const closest = withDistances[0];
+    if (closest) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${closest.latitude},${closest.longitude}`, "_blank");
+      setMessage(`Apertura navigatore verso l'idrante più vicino (a ${Math.round(closest.distance)}m)`);
+    }
   }
 
   return (
@@ -621,9 +583,21 @@ export default function HydrantMap() {
         )}
 
         {draftPosition && (
-          <Marker position={[draftPosition.latitude, draftPosition.longitude]} icon={draftIcon}>
-            <Tooltip direction="top" offset={[0, -24]} permanent>
-              Nuovo idrante
+          <Marker 
+            position={[draftPosition.latitude, draftPosition.longitude]} 
+            icon={draftIcon}
+            draggable={true}
+            eventHandlers={{
+              dragend: (e) => {
+                const marker = e.target;
+                const pos = marker.getLatLng();
+                setDraftPosition({ latitude: pos.lat, longitude: pos.lng });
+                fetchAddress(pos.lat, pos.lng);
+              }
+            }}
+          >
+            <Tooltip permanent direction="top" className="font-bold">
+              Nuovo idrante (Trascina)
             </Tooltip>
           </Marker>
         )}
@@ -782,21 +756,10 @@ export default function HydrantMap() {
           >
             <LocateFixed size={15} aria-hidden="true" />
           </button>
-          {!draftPosition && (
-            <button
-              type="button"
-              onClick={createHydrantAtCurrentPosition}
-              disabled={!userPosition}
-              className="flex h-8 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 px-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-600 active:scale-95 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
-              aria-label="Nuovo idrante"
-              title="Nuovo idrante qui (usa posizione GPS)"
-            >
-              <MapPinPlus size={15} className="shrink-0" aria-hidden="true" />
-              <span className="hidden sm:inline">Nuovo</span>
-            </button>
-          )}
         </div>
       </section>
+
+
 
       <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[90vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"}`}>
         <DrawerHandle isOpen={isDrawerOpen} onToggle={() => setIsDrawerOpen(prev => !prev)}>
@@ -970,193 +933,121 @@ export default function HydrantMap() {
                 </div>
               </div>
 
-              {/* Diametro Nominale (DN) */}
-              <Field label="Diametro Nominale (DN)">
-                <select
-                  value={form.dn}
-                  onChange={(e) => setForm({ ...form, dn: e.target.value })}
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base font-medium text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                >
-                  <option value="DN 80">DN 80 (Standard)</option>
-                  <option value="DN 100">DN 100</option>
-                  <option value="DN 150">DN 150</option>
-                  <option value="DN 200">DN 200</option>
-                </select>
-              </Field>
+              {/* Attacchi UNI (DN) e Accessori Mappa */}
+              <div className="space-y-4">
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
+                  <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-600">UNI 45</span>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: Math.max(0, f.uni45Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
+                        <span className="w-8 text-center text-xl font-bold">{form.uni45Count}</span>
+                        <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: f.uni45Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-600">UNI 70</span>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: Math.max(0, f.uni70Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
+                        <span className="w-8 text-center text-xl font-bold">{form.uni70Count}</span>
+                        <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: f.uni70Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              {/* Tappi */}
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
-                <span className="block text-sm font-semibold text-slate-800">Tappi di Chiusura</span>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
+                  <span className="block text-base font-semibold text-slate-800">Tappi e Catenelle</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-600">Tappi Mancanti</span>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setForm(f => ({ ...f, missingCaps: Math.max(0, f.missingCaps - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">-</button>
+                        <span className="w-8 text-center text-xl font-bold">{form.missingCaps}</span>
+                        <button type="button" onClick={() => setForm(f => ({ ...f, missingCaps: f.missingCaps + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">+</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-600">Catene Mancanti</span>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setForm(f => ({ ...f, missingChains: Math.max(0, f.missingChains - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">-</button>
+                        <span className="w-8 text-center text-xl font-bold">{form.missingChains}</span>
+                        <button type="button" onClick={() => setForm(f => ({ ...f, missingChains: f.missingChains + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                  <span className="block text-base font-semibold text-slate-800">Coperchio / Pozzetto</span>
+                  <div className="flex items-center gap-6">
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
                       <input
                         type="radio"
-                        name="caps_present"
-                        checked={form.caps_present === true}
-                        onChange={() => setForm({ ...form, caps_present: true })}
-                        className="h-5 w-5 text-blue-600"
+                        name="hasCover"
+                        checked={form.hasCover === true}
+                        onChange={() => setForm({ ...form, hasCover: true })}
+                        className="hidden"
                       />
-                      SI
+                      PRESENTE
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
                       <input
                         type="radio"
-                        name="caps_present"
-                        checked={form.caps_present === false}
-                        onChange={() => setForm({ ...form, caps_present: false })}
-                        className="h-5 w-5 text-blue-600"
+                        name="hasCover"
+                        checked={form.hasCover === false}
+                        onChange={() => setForm({ ...form, hasCover: false })}
+                        className="hidden"
                       />
-                      NO
+                      ASSENTE
                     </label>
                   </div>
-                  {form.caps_present && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-500">Quantità:</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={form.caps_quantity}
-                        onChange={(e) => setForm({ ...form, caps_quantity: parseInt(e.target.value) || 0 })}
-                        className="h-10 w-16 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-900 outline-none focus:border-blue-600"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
+            </div>
 
-              {/* Catenelle */}
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
-                <span className="block text-sm font-semibold text-slate-800">Catenelle di Sicurezza</span>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
-                      <input
-                        type="radio"
-                        name="chains_present"
-                        checked={form.chains_present === true}
-                        onChange={() => setForm({ ...form, chains_present: true })}
-                        className="h-5 w-5 text-blue-600"
-                      />
-                      SI
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
-                      <input
-                        type="radio"
-                        name="chains_present"
-                        checked={form.chains_present === false}
-                        onChange={() => setForm({ ...form, chains_present: false })}
-                        className="h-5 w-5 text-blue-600"
-                      />
-                      NO
-                    </label>
+            <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato & Conservazione</h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="mb-3 block text-base font-bold text-slate-800">Stato Funzionale</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
+                      <label key={statusOption} className="flex min-h-[56px] items-center gap-4 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-semibold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="status"
+                          value={statusOption}
+                          checked={form.status === statusOption}
+                          onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
+                          className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
+                        />
+                        {statusOption}
+                      </label>
+                    ))}
                   </div>
-                  {form.chains_present && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-500">Quantità:</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={form.chains_quantity}
-                        onChange={(e) => setForm({ ...form, chains_quantity: parseInt(e.target.value) || 0 })}
-                        className="h-10 w-16 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-900 outline-none focus:border-blue-600"
-                      />
-                    </div>
-                  )}
                 </div>
-              </div>
 
-              {/* Pozzetto annesso */}
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-3">
-                <span className="block text-sm font-semibold text-slate-800">Pozzetto Annesso</span>
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
-                    <input
-                      type="radio"
-                      name="attached_pit"
-                      checked={form.attached_pit === true}
-                      onChange={() => setForm({ ...form, attached_pit: true })}
-                      className="h-5 w-5 text-blue-600"
-                    />
-                    SI
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-base font-medium text-slate-700">
-                    <input
-                      type="radio"
-                      name="attached_pit"
-                      checked={form.attached_pit === false}
-                      onChange={() => setForm({ ...form, attached_pit: false })}
-                      className="h-5 w-5 text-blue-600"
-                    />
-                    NO
-                  </label>
+                <div>
+                  <label className="mb-3 block text-base font-bold text-slate-800">Stato di Conservazione</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {["NUOVO", "DISCRETO", "SUFFICIENTE", "PESSIMO / DANNEGGIATO", "DA VERNICIARE"].map((conditionOption) => (
+                      <label key={conditionOption} className="flex min-h-[56px] items-center gap-4 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-semibold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="condition"
+                          value={conditionOption}
+                          checked={form.condition === conditionOption}
+                          onChange={() => setForm({ ...form, condition: conditionOption as HydrantCondition })}
+                          className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
+                        />
+                        {conditionOption}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Attacchi</h3>
-            <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-              {["UNI 45", "UNI 70", "UNI 100"].map((connection) => (
-                <label key={connection} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={form.connections.includes(connection)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setForm({ ...form, connections: [...form.connections, connection] });
-                      } else {
-                        setForm({ ...form, connections: form.connections.filter((c) => c !== connection) });
-                      }
-                    }}
-                    className="h-6 w-6 shrink-0 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                  />
-                  {connection}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Sezione Stato e Funzionalità */}
-          <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato & Conservazione</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-800">Stato Funzionale</label>
-                <div className="flex flex-col gap-2">
-                  {["Funzionante", "Non funzionante", "Da verificare"].map((statusOption) => (
-                    <label key={statusOption} className="flex min-h-[44px] items-center gap-3 cursor-pointer rounded-lg px-2 py-2 text-base font-medium text-slate-700 active:bg-slate-100 transition-colors">
-                      <input
-                        type="radio"
-                        name="status"
-                        value={statusOption}
-                        checked={form.status === statusOption}
-                        onChange={() => setForm({ ...form, status: statusOption as HydrantStatus })}
-                        className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
-                      />
-                      {statusOption}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Stato di Conservazione (Nuovo / Buono / Pessimo) */}
-              <Field label="Stato di Conservazione">
-                <select
-                  value={form.condition}
-                  onChange={(e) => setForm({ ...form, condition: e.target.value as HydrantCondition })}
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base font-medium text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                >
-                  <option value="Nuovo">Nuovo</option>
-                  <option value="Buono">Buono</option>
-                  <option value="Pessimo">Pessimo</option>
-                </select>
-              </Field>
             </div>
           </div>
 
@@ -1315,6 +1206,21 @@ export default function HydrantMap() {
         </form>
         </div>
       </aside>
+
+      {/* Massive Bottom Button for NUOVO IDRANTE */}
+      {!draftPosition && (
+        <div className="absolute inset-x-0 bottom-8 z-[400] flex justify-center px-4 pointer-events-none">
+          <button
+            type="button"
+            onClick={handleNuovoIdrante}
+            className="pointer-events-auto flex w-full max-w-sm items-center justify-center gap-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 py-4 px-6 text-lg font-black tracking-wide text-white shadow-[0_10px_40px_rgba(37,99,235,0.4)] transition-transform hover:scale-[1.02] active:scale-95 border-2 border-white/20"
+          >
+            <MapPinPlus size={24} aria-hidden="true" />
+            NUOVO IDRANTE
+          </button>
+        </div>
+      )}
+
     </main>
   );
 }

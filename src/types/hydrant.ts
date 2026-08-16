@@ -1,6 +1,6 @@
 export type HydrantStatus = "Funzionante" | "Non funzionante" | "Da verificare";
 
-export type HydrantCondition = "Nuovo" | "Buono" | "Pessimo";
+export type HydrantCondition = "NUOVO" | "DISCRETO" | "SUFFICIENTE" | "PESSIMO / DANNEGGIATO" | "DA VERNICIARE";
 
 export type HydrantType = "Soprasuolo" | "Sottosuolo" | "Parete";
 
@@ -39,12 +39,11 @@ export type HydrantFormState = {
   connections: string[];
   status: HydrantStatus;
   condition: HydrantCondition;
-  dn: string;
-  caps_present: boolean | null;
-  caps_quantity: number;
-  chains_present: boolean | null;
-  chains_quantity: number;
-  attached_pit: boolean | null;
+  uni45Count: number;
+  uni70Count: number;
+  missingCaps: number;
+  missingChains: number;
+  hasCover: boolean;
   sign_present: boolean | null;
   accessibility: string;
   notes: string;
