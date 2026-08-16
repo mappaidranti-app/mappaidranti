@@ -1001,15 +1001,14 @@ export default function HydrantMap() {
                     </label>
                   </div>
                 </div>
-                </div>
               </div>
             </div>
           </div>
 
           <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato & Conservazione</h3>
-              
-              <div className="space-y-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Stato & Conservazione</h3>
+            
+            <div className="space-y-6">
                 <div>
                   <label className="mb-3 block text-base font-bold text-slate-800">Stato Funzionale</label>
                   <div className="grid grid-cols-1 gap-3">
