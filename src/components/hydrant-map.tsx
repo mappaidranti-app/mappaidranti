@@ -132,7 +132,7 @@ function MapClickHandler({
   return null;
 }
 
-function buildPhotoPath(file: File, typeName: string) {
+function buildPhotoPath(file: File) {
   const extension = file.name.split(".").pop() || "jpg";
   const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
   return cleanFileName;
@@ -155,8 +155,8 @@ export default function HydrantMap() {
   const [message, setMessage] = useState("Tocca la mappa per censire un idrante.");
   const [loadError, setLoadError] = useState<string | null>(null);
   
-  const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null);
-  const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set());
+  const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set()); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
@@ -413,7 +413,7 @@ export default function HydrantMap() {
       console.log("[IDRANTYA] Idrante inserito con successo, id:", newHydrant.id, "code:", newHydrant.code);
 
       // 2. Upload foto — TOLLERANTE AI GUASTI: un errore foto non blocca il salvataggio
-      const generatedCode = newHydrant.code ?? newHydrant.id;
+      // generatedCode intentionally removed — not used after photo path refactor
       let photoUrl: string | null = null;
       let notesWithPhoto = form.notes.trim();
       let photoUpdated = false;
@@ -421,7 +421,7 @@ export default function HydrantMap() {
       // BUCKET NAME IN USE: "hydrant-photos"
       if (filePanoramica) {
         try {
-          const pathPanoramic = buildPhotoPath(filePanoramica, 'panoramica');
+          const pathPanoramic = buildPhotoPath(filePanoramica);
           console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload panoramica su path:", pathPanoramic);
           const { error: uploadErrorPanoramic } = await supabase.storage
             .from("hydrant-photos")
@@ -446,7 +446,7 @@ export default function HydrantMap() {
 
       if (fileRavvicinata) {
         try {
-          const pathCloseUp = buildPhotoPath(fileRavvicinata, 'ravvicinata');
+          const pathCloseUp = buildPhotoPath(fileRavvicinata);
           console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload ravvicinata su path:", pathCloseUp);
           const { error: uploadErrorCloseUp } = await supabase.storage
             .from("hydrant-photos")
@@ -684,7 +684,8 @@ export default function HydrantMap() {
                         type: hydrant.type,
                         connections: hydrant.connections || [],
                         status: hydrant.status,
-                        condition: (hydrant.condition as any) || "DISCRETO",
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        condition: (hydrant.condition as HydrantCondition) || "DISCRETO",
                         uni45Count: 0,
                         uni70Count: 0,
                         missingCaps: hydrant.caps_quantity ?? 0,
