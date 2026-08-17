@@ -165,6 +165,8 @@ export default function HydrantMap() {
   const [filePanoramica, setFilePanoramica] = useState<File | null>(null);
   const [previewRavvicinata, setPreviewRavvicinata] = useState<string | null>(null);
   const [previewPanoramica, setPreviewPanoramica] = useState<string | null>(null);
+  const inputRavvicinataRef = useRef<HTMLInputElement>(null);
+  const inputPanoramicaRef = useRef<HTMLInputElement>(null);
 
   const stats = useMemo(
     () => ({
@@ -1104,79 +1106,77 @@ export default function HydrantMap() {
               Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              {/* FOTO 1 — Ravvicinata */}
-              <div className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
-                <input
-                  id="input-ravvicinata"
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    if (file) {
-                      setPreviewRavvicinata(URL.createObjectURL(file));
-                      setFileRavvicinata(file);
-                    } else {
-                      setPreviewRavvicinata(null);
-                      setFileRavvicinata(null);
-                    }
-                    event.target.value = '';
-                  }}
-                />
-                <label
-                  htmlFor="input-ravvicinata"
-                  className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center p-3 text-center"
-                >
-                  {previewRavvicinata ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
-                  ) : (
-                    <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
-                      <ImageUp size={24} aria-hidden="true" />
-                    </div>
-                  )}
-                  <span className="line-clamp-2 text-sm font-semibold text-slate-700">
-                    {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
-                  </span>
-                </label>
-              </div>
+              {/* FOTO 1 — Ravvicinata: input nascosto, click via ref */}
+              <input
+                ref={inputRavvicinataRef}
+                id="input-ravvicinata"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const objectUrl = URL.createObjectURL(file);
+                    setFileRavvicinata(file);
+                    setPreviewRavvicinata(objectUrl);
+                  }
+                  // reset DOPO aver salvato il file nello stato
+                  setTimeout(() => { if (inputRavvicinataRef.current) inputRavvicinataRef.current.value = ''; }, 100);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => inputRavvicinataRef.current?.click()}
+                className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden w-full"
+              >
+                {previewRavvicinata ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-2 rounded-md" />
+                ) : (
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-2">
+                    <ImageUp size={24} aria-hidden="true" />
+                  </div>
+                )}
+                <span className="text-sm font-semibold text-slate-700">
+                  {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
+                </span>
+              </button>
 
-              {/* FOTO 2 — Panoramica */}
-              <div className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
-                <input
-                  id="input-panoramica"
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    if (file) {
-                      setPreviewPanoramica(URL.createObjectURL(file));
-                      setFilePanoramica(file);
-                    } else {
-                      setPreviewPanoramica(null);
-                      setFilePanoramica(null);
-                    }
-                    event.target.value = '';
-                  }}
-                />
-                <label
-                  htmlFor="input-panoramica"
-                  className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center p-3 text-center"
-                >
-                  {previewPanoramica ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
-                  ) : (
-                    <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
-                      <ImageUp size={24} aria-hidden="true" />
-                    </div>
-                  )}
-                  <span className="line-clamp-2 text-sm font-semibold text-slate-700">
-                    {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
-                  </span>
-                </label>
-              </div>
+              {/* FOTO 2 — Panoramica: input nascosto, click via ref DISTINTO */}
+              <input
+                ref={inputPanoramicaRef}
+                id="input-panoramica"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const objectUrl = URL.createObjectURL(file);
+                    setFilePanoramica(file);
+                    setPreviewPanoramica(objectUrl);
+                  }
+                  // reset DOPO aver salvato il file nello stato
+                  setTimeout(() => { if (inputPanoramicaRef.current) inputPanoramicaRef.current.value = ''; }, 100);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => inputPanoramicaRef.current?.click()}
+                className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden w-full"
+              >
+                {previewPanoramica ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-2 rounded-md" />
+                ) : (
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-2">
+                    <ImageUp size={24} aria-hidden="true" />
+                  </div>
+                )}
+                <span className="text-sm font-semibold text-slate-700">
+                  {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
+                </span>
+              </button>
             </div>
           </div>
 
