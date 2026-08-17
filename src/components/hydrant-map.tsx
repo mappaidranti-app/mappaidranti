@@ -439,7 +439,7 @@ export default function HydrantMap() {
           }
         } catch (photoErr) {
           const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
-          console.warn("[IDRANTYA] Eccezione upload panoramica:", photoErr);
+          console.error("[IDRANTYA] Eccezione upload PANORAMICA — quota/permessi Supabase?", photoErr);
           alert("⚠️ Eccezione Upload Foto Panoramica:\n\n" + errMsg);
         }
       }
@@ -467,7 +467,7 @@ export default function HydrantMap() {
           }
         } catch (photoErr) {
           const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
-          console.warn("[IDRANTYA] Eccezione upload ravvicinata:", photoErr);
+          console.error("[IDRANTYA] Eccezione upload RAVVICINATA — quota/permessi Supabase?", photoErr);
           alert("⚠️ Eccezione Upload Foto Ravvicinata:\n\n" + errMsg);
         }
       }
@@ -1104,17 +1104,17 @@ export default function HydrantMap() {
               Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <label className="relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
+              {/* FOTO 1 — Ravvicinata */}
+              <div className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
                 <input
+                  id="input-ravvicinata"
                   type="file"
                   accept="image/*"
-                  capture="environment"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="sr-only"
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     if (file) {
-                      const url = URL.createObjectURL(file);
-                      setPreviewRavvicinata(url);
+                      setPreviewRavvicinata(URL.createObjectURL(file));
                       setFileRavvicinata(file);
                     } else {
                       setPreviewRavvicinata(null);
@@ -1123,30 +1123,35 @@ export default function HydrantMap() {
                     event.target.value = '';
                   }}
                 />
-                {previewRavvicinata ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
-                ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
-                    <ImageUp size={24} aria-hidden="true" />
-                  </div>
-                )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700 relative z-10 pointer-events-none">
-                  {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
-                </span>
-              </label>
+                <label
+                  htmlFor="input-ravvicinata"
+                  className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center p-3 text-center"
+                >
+                  {previewRavvicinata ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  ) : (
+                    <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                      <ImageUp size={24} aria-hidden="true" />
+                    </div>
+                  )}
+                  <span className="line-clamp-2 text-sm font-semibold text-slate-700">
+                    {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
+                  </span>
+                </label>
+              </div>
 
-              <label className="relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
+              {/* FOTO 2 — Panoramica */}
+              <div className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden">
                 <input
+                  id="input-panoramica"
                   type="file"
                   accept="image/*"
-                  capture="environment"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="sr-only"
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     if (file) {
-                      const url = URL.createObjectURL(file);
-                      setPreviewPanoramica(url);
+                      setPreviewPanoramica(URL.createObjectURL(file));
                       setFilePanoramica(file);
                     } else {
                       setPreviewPanoramica(null);
@@ -1155,18 +1160,23 @@ export default function HydrantMap() {
                     event.target.value = '';
                   }}
                 />
-                {previewPanoramica ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md relative z-10 pointer-events-none" />
-                ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3 relative z-10 pointer-events-none">
-                    <ImageUp size={24} aria-hidden="true" />
-                  </div>
-                )}
-                <span className="line-clamp-2 text-sm font-semibold text-slate-700 relative z-10 pointer-events-none">
-                  {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
-                </span>
-              </label>
+                <label
+                  htmlFor="input-panoramica"
+                  className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center p-3 text-center"
+                >
+                  {previewPanoramica ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-3 rounded-md" />
+                  ) : (
+                    <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-3">
+                      <ImageUp size={24} aria-hidden="true" />
+                    </div>
+                  )}
+                  <span className="line-clamp-2 text-sm font-semibold text-slate-700">
+                    {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
 
