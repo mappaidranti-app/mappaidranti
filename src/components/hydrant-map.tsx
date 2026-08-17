@@ -1112,6 +1112,7 @@ export default function HydrantMap() {
                 id="input-ravvicinata"
                 type="file"
                 accept="image/*"
+                capture="environment"
                 className="sr-only"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -1148,6 +1149,7 @@ export default function HydrantMap() {
                 id="input-panoramica"
                 type="file"
                 accept="image/*"
+                capture="environment"
                 className="sr-only"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
