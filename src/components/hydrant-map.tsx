@@ -56,7 +56,6 @@ const SAMPLE_STREETS = [
 
 const emptyForm: HydrantFormState = {
   code: "",
-  hamlet: "",
   street: "",
   street_number: "",
   type: "Soprasuolo",
@@ -387,7 +386,7 @@ export default function HydrantMap() {
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         municipality_id: municipalityId,
-        hamlet: form.hamlet.trim() || null,
+        hamlet: null,
         street: form.street.trim() || null,
         street_number: form.street_number.trim() || null,
         connections: form.connections,
@@ -610,29 +609,18 @@ export default function HydrantMap() {
             position={[hydrant.latitude, hydrant.longitude]}
             icon={hydrantIcon}
           >
-            <Popup minWidth={220}>
-              <article className="space-y-2 text-sm text-slate-800">
+            <Popup minWidth={260}>
+              <article className="space-y-3 text-sm text-slate-800">
                 {/* Titolo */}
                 <h3 className="text-sm font-bold text-slate-900 leading-tight uppercase tracking-wider">
                   {hydrant.code ? `IDRANTE ${hydrant.code}` : "IDRANTE"}
                 </h3>
 
-                {/* Via e numero civico */}
+                {/* Via */}
                 {(hydrant.street || hydrant.street_number) && (
                   <p className="text-sm font-medium text-slate-700 leading-snug">
-                    {hydrant.street}
-                    {hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
+                    {hydrant.street}{hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
                   </p>
-                )}
-
-                {/* Attacchi */}
-                {hydrant.connections && hydrant.connections.length > 0 && (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attacchi:</span>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {hydrant.connections.join(" • ")}
-                    </p>
-                  </div>
                 )}
 
                 {/* Stato funzionale */}
@@ -646,25 +634,66 @@ export default function HydrantMap() {
                       : "bg-amber-50 text-amber-700 border border-amber-200"
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${
-                      hydrant.status === "Funzionante"
-                        ? "bg-emerald-500"
-                        : hydrant.status === "Non funzionante"
-                        ? "bg-rose-500"
-                        : "bg-amber-500"
+                      hydrant.status === "Funzionante" ? "bg-emerald-500"
+                      : hydrant.status === "Non funzionante" ? "bg-rose-500"
+                      : "bg-amber-500"
                     }`} />
                     {STATUS_LABELS[hydrant.status]}
                   </span>
                 </div>
 
-                {/* Foto */}
+                {/* Conservazione */}
+                {hydrant.condition && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Conservazione:</span>
+                    <span className="text-sm font-semibold">{hydrant.condition}</span>
+                  </div>
+                )}
+
+                {/* Specifiche tecniche */}
+                {hydrant.dn && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attacchi:</span>
+                    <span className="text-sm font-semibold">{hydrant.dn}</span>
+                  </div>
+                )}
+
+                {/* Tappi / Catene / Coperchio */}
+                <div className="grid grid-cols-3 gap-1 text-center">
+                  <div className="rounded bg-slate-100 px-1 py-1">
+                    <p className="text-[9px] font-bold uppercase text-slate-400">Tappi mancanti</p>
+                    <p className="text-base font-black text-rose-600">{hydrant.caps_quantity ?? 0}</p>
+                  </div>
+                  <div className="rounded bg-slate-100 px-1 py-1">
+                    <p className="text-[9px] font-bold uppercase text-slate-400">Catene mancanti</p>
+                    <p className="text-base font-black text-rose-600">{hydrant.chains_quantity ?? 0}</p>
+                  </div>
+                  <div className="rounded bg-slate-100 px-1 py-1">
+                    <p className="text-[9px] font-bold uppercase text-slate-400">Coperchio</p>
+                    <p className="text-base font-black">{hydrant.attached_pit ? "✅" : "❌"}</p>
+                  </div>
+                </div>
+
+                {/* Note */}
+                {hydrant.notes && (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Note:</span>
+                    <p className="text-xs text-slate-700 leading-snug">{hydrant.notes}</p>
+                  </div>
+                )}
+
+                {/* Foto ravvicinata */}
                 {hydrant.photo_url && (
                   <div className="pt-1">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={hydrant.photo_url}
-                      alt={`Foto idrante ${hydrant.code}`}
-                      className="h-28 w-full rounded-lg object-cover shadow-sm border border-slate-100"
-                    />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Foto ravvicinata:</span>
+                    <a href={hydrant.photo_url} target="_blank" rel="noopener noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={hydrant.photo_url}
+                        alt={`Foto ravvicinata idrante ${hydrant.code}`}
+                        className="h-28 w-full rounded-lg object-cover shadow-sm border border-slate-100 hover:opacity-90 transition"
+                      />
+                    </a>
                   </div>
                 )}
 
@@ -680,7 +709,6 @@ export default function HydrantMap() {
                       setIsDrawerOpen(true);
                       setForm({
                         code: hydrant.code,
-                        hamlet: hydrant.hamlet || "",
                         street: hydrant.street || "",
                         street_number: hydrant.street_number || "",
                         type: hydrant.type,
@@ -700,7 +728,7 @@ export default function HydrantMap() {
                     }}
                     className="w-full text-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-1.5 transition"
                   >
-                    Apri scheda
+                    ✏️ Modifica scheda
                   </button>
                 </div>
               </article>
@@ -876,14 +904,6 @@ export default function HydrantMap() {
                   </Field>
                 </div>
               </div>
-              <Field label="Frazione / Località">
-                <input
-                  value={form.hamlet}
-                  onChange={(event) => setForm({ ...form, hamlet: event.target.value })}
-                  placeholder="Es. Centro Storico"
-                  className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 text-base outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                />
-              </Field>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -1105,8 +1125,8 @@ export default function HydrantMap() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
               Documentazione Fotografica <span className="text-xs text-slate-400 font-normal ml-1">(Opzionale)</span>
             </h3>
-            <div className="grid grid-cols-2 gap-4">
-              {/* FOTO 1 — Ravvicinata: input nascosto, click via ref */}
+            <div className="grid grid-cols-1 gap-4">
+              {/* FOTO 1 — Da vicino */}
               <input
                 ref={inputRavvicinataRef}
                 id="input-ravvicinata"
@@ -1121,29 +1141,40 @@ export default function HydrantMap() {
                     setFileRavvicinata(file);
                     setPreviewRavvicinata(objectUrl);
                   }
-                  // reset DOPO aver salvato il file nello stato
                   setTimeout(() => { if (inputRavvicinataRef.current) inputRavvicinataRef.current.value = ''; }, 100);
                 }}
               />
-              <button
-                type="button"
-                onClick={() => inputRavvicinataRef.current?.click()}
-                className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden w-full"
-              >
+              <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4">
+                <p className="text-base font-black text-slate-800 uppercase tracking-wide">📷 FOTO DA VICINO</p>
+                <p className="text-xs text-slate-500 mb-3">Max 1 metro dall&apos;idrante</p>
                 {previewRavvicinata ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={previewRavvicinata} alt="Ravvicinata" className="h-20 w-full object-contain mb-2 rounded-md" />
-                ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-2">
-                    <ImageUp size={24} aria-hidden="true" />
+                  <div className="space-y-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={previewRavvicinata} alt="Ravvicinata" className="h-32 w-full object-contain rounded-lg border border-slate-200" />
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 rounded-lg bg-emerald-100 py-1.5 text-center text-sm font-bold text-emerald-700">✓ FOTO OK / ACQUISITA</span>
+                      <button
+                        type="button"
+                        onClick={() => inputRavvicinataRef.current?.click()}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+                      >
+                        Cambia foto
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => inputRavvicinataRef.current?.click()}
+                    className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white py-6 text-slate-500 hover:bg-slate-50 transition"
+                  >
+                    <ImageUp size={28} aria-hidden="true" />
+                    <span className="text-sm font-semibold">Tocca per scattare</span>
+                  </button>
                 )}
-                <span className="text-sm font-semibold text-slate-700">
-                  {previewRavvicinata ? "✅ Ravvicinata" : "Ravvicinata"}
-                </span>
-              </button>
+              </div>
 
-              {/* FOTO 2 — Panoramica: input nascosto, click via ref DISTINTO */}
+              {/* FOTO 2 — Panoramica */}
               <input
                 ref={inputPanoramicaRef}
                 id="input-panoramica"
@@ -1158,27 +1189,38 @@ export default function HydrantMap() {
                     setFilePanoramica(file);
                     setPreviewPanoramica(objectUrl);
                   }
-                  // reset DOPO aver salvato il file nello stato
                   setTimeout(() => { if (inputPanoramicaRef.current) inputPanoramicaRef.current.value = ''; }, 100);
                 }}
               />
-              <button
-                type="button"
-                onClick={() => inputPanoramicaRef.current?.click()}
-                className="relative flex min-h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center transition hover:bg-slate-100 hover:border-slate-400 overflow-hidden w-full"
-              >
+              <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4">
+                <p className="text-base font-black text-slate-800 uppercase tracking-wide">🌄 FOTO PANORAMICA ORIZZONTALE</p>
+                <p className="text-xs text-slate-500 mb-3">Minimo 3 metri di distanza</p>
                 {previewPanoramica ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={previewPanoramica} alt="Panoramica" className="h-20 w-full object-contain mb-2 rounded-md" />
-                ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-200 text-slate-500 mb-2">
-                    <ImageUp size={24} aria-hidden="true" />
+                  <div className="space-y-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={previewPanoramica} alt="Panoramica" className="h-32 w-full object-contain rounded-lg border border-slate-200" />
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 rounded-lg bg-emerald-100 py-1.5 text-center text-sm font-bold text-emerald-700">✓ FOTO OK / ACQUISITA</span>
+                      <button
+                        type="button"
+                        onClick={() => inputPanoramicaRef.current?.click()}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+                      >
+                        Cambia foto
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => inputPanoramicaRef.current?.click()}
+                    className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white py-6 text-slate-500 hover:bg-slate-50 transition"
+                  >
+                    <ImageUp size={28} aria-hidden="true" />
+                    <span className="text-sm font-semibold">Tocca per scattare</span>
+                  </button>
                 )}
-                <span className="text-sm font-semibold text-slate-700">
-                  {previewPanoramica ? "✅ Panoramica" : "Panoramica"}
-                </span>
-              </button>
+              </div>
             </div>
           </div>
 

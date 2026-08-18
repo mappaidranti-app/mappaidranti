@@ -32,7 +32,6 @@ export type Hydrant = {
 
 export type HydrantFormState = {
   code: string;
-  hamlet: string;
   street: string;
   street_number: string;
   type: HydrantType;
