@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { InstallPwaButton } from "@/components/install-pwa-button";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -93,6 +94,13 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* PWA install button — shown below login form */}
+        <InstallPwaButton />
+
+        <p className="mt-6 text-center text-xs text-gray-400">
+          IDRANTYA &copy; {new Date().getFullYear()} — Catasto operativo idranti
+        </p>
       </div>
     </div>
   );

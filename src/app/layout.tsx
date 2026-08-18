@@ -13,8 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Mappa Idranti",
-  description: "Dashboard comunale per censire e monitorare idranti sul territorio.",
+  title: "IDRANTYA – Mappa Idranti",
+  description: "Catasto operativo idranti antincendio sul territorio comunale.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "IDRANTYA",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "theme-color": "#2563eb",
+  },
 };
 
 export default function RootLayout({
