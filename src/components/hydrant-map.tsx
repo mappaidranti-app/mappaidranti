@@ -1441,7 +1441,7 @@ export default function HydrantMap() {
                     type: selectedHydrant.type,
                     connections: selectedHydrant.connections || [],
                     status: selectedHydrant.status,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    
                     condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
                     uni45Count: 0, uni70Count: 0,
                     missingCaps: selectedHydrant.caps_quantity ?? 0,
