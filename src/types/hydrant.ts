@@ -1,6 +1,6 @@
 export type HydrantStatus = "Funzionante" | "Non funzionante" | "Da verificare";
 
-export type HydrantCondition = "NUOVO" | "DISCRETO" | "SUFFICIENTE" | "PESSIMO / DANNEGGIATO" | "DA VERNICIARE";
+export type HydrantCondition = "NUOVO" | "DISCRETO" | "SUFFICIENTE" | "PESSIMO / DANNEGGIATO";
 
 export type HydrantType = "Soprasuolo" | "Sottosuolo" | "Parete";
 
@@ -28,6 +28,10 @@ export type Hydrant = {
   connections?: string[];
   sign_present?: boolean | null;
   accessibility?: string | null;
+  has_pit?: boolean | null;
+  pit_inspectable?: boolean | null;
+  pit_photo_url?: string | null;
+  needs_painting?: boolean | null;
 };
 
 export type HydrantFormState = {
@@ -46,5 +50,8 @@ export type HydrantFormState = {
   sign_present: boolean | null;
   accessibility: string;
   notes: string;
+  has_pit: boolean | null;
+  pit_inspectable: boolean | null;
+  needs_painting: boolean | null;
 };
 

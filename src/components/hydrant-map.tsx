@@ -5,7 +5,6 @@ import {
   CircleMarker,
   MapContainer,
   Marker,
-  Popup,
   TileLayer,
   Tooltip,
   useMap,
@@ -25,6 +24,8 @@ import {
   Siren,
   X,
   ChevronDown,
+  Pencil,
+  Camera,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType } from "@/types/hydrant";
@@ -70,6 +71,9 @@ const emptyForm: HydrantFormState = {
   sign_present: null,
   accessibility: "",
   notes: "",
+  has_pit: null,
+  pit_inspectable: null,
+  needs_painting: null,
 };
 
 const hydrantIcon = L.divIcon({
@@ -160,12 +164,18 @@ export default function HydrantMap() {
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedHydrant, setSelectedHydrant] = useState<Hydrant | null>(null);
+  const [isClosestListOpen, setIsClosestListOpen] = useState(false);
+  const [closestHydrantsList, setClosestHydrantsList] = useState<(Hydrant & { distance: number })[]>([]);
   const [fileRavvicinata, setFileRavvicinata] = useState<File | null>(null);
   const [filePanoramica, setFilePanoramica] = useState<File | null>(null);
+  const [filePozzetto, setFilePozzetto] = useState<File | null>(null);
   const [previewRavvicinata, setPreviewRavvicinata] = useState<string | null>(null);
   const [previewPanoramica, setPreviewPanoramica] = useState<string | null>(null);
+  const [previewPozzetto, setPreviewPozzetto] = useState<string | null>(null);
   const inputRavvicinataRef = useRef<HTMLInputElement>(null);
   const inputPanoramicaRef = useRef<HTMLInputElement>(null);
+  const inputPozzettoRef = useRef<HTMLInputElement>(null);
 
   const stats = useMemo(
     () => ({
@@ -393,17 +403,22 @@ export default function HydrantMap() {
         sign_present: form.sign_present,
         photo_url: null as string | null,
         code: form.code.trim() || null,
+        has_pit: form.has_pit,
+        pit_inspectable: form.pit_inspectable,
+        needs_painting: form.needs_painting,
+        pit_photo_url: null as string | null,
       };
 
       console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
       console.log("Payload DB:", JSON.stringify(payload, null, 2));
       console.log("fileRavvicinata:", fileRavvicinata ? `${fileRavvicinata.name} (${fileRavvicinata.size} bytes)` : "null");
       console.log("filePanoramica:", filePanoramica ? `${filePanoramica.name} (${filePanoramica.size} bytes)` : "null");
+      console.log("filePozzetto:", filePozzetto ? `${filePozzetto.name} (${filePozzetto.size} bytes)` : "null");
 
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_photo_url, needs_painting")
         .single();
 
       if (insertError) {
@@ -414,8 +429,8 @@ export default function HydrantMap() {
       console.log("[IDRANTYA] Idrante inserito con successo, id:", newHydrant.id, "code:", newHydrant.code);
 
       // 2. Upload foto — TOLLERANTE AI GUASTI: un errore foto non blocca il salvataggio
-      // generatedCode intentionally removed — not used after photo path refactor
       let photoUrl: string | null = null;
+      let pitPhotoUrl: string | null = null;
       let notesWithPhoto = form.notes.trim();
       let photoUpdated = false;
 
@@ -473,6 +488,31 @@ export default function HydrantMap() {
         }
       }
 
+      if (filePozzetto) {
+        try {
+          const pathPozzetto = buildPhotoPath(filePozzetto);
+          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload pozzetto su path:", pathPozzetto);
+          const { error: uploadErrorPozzetto } = await supabase.storage
+            .from("hydrant-photos")
+            .upload(pathPozzetto, filePozzetto, { upsert: false });
+
+          if (uploadErrorPozzetto) {
+            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathPozzetto}\nErrore: ${uploadErrorPozzetto.message}\nDettaglio: ${JSON.stringify(uploadErrorPozzetto)}`;
+            console.warn("[IDRANTYA] Upload pozzetto fallito:", errMsg);
+            alert("⚠️ Errore Upload Foto Pozzetto:\n\n" + errMsg);
+          } else {
+            const { data: dataPozzetto } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPozzetto);
+            pitPhotoUrl = dataPozzetto.publicUrl;
+            photoUpdated = true;
+            console.log("[IDRANTYA] Pozzetto caricato:", pitPhotoUrl);
+          }
+        } catch (photoErr) {
+          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
+          console.error("[IDRANTYA] Eccezione upload POZZETTO — quota/permessi Supabase?", photoErr);
+          alert("⚠️ Eccezione Upload Foto Pozzetto:\n\n" + errMsg);
+        }
+      }
+
       let finalHydrant = newHydrant;
 
       // 3. Aggiornamento URL foto nel record (opzionale)
@@ -482,10 +522,11 @@ export default function HydrantMap() {
             .from("hydrants")
             .update({
               photo_url: photoUrl || newHydrant.photo_url,
+              pit_photo_url: pitPhotoUrl || newHydrant.pit_photo_url,
               notes: notesWithPhoto || null,
             })
             .eq("id", newHydrant.id)
-            .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present")
+            .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_photo_url, needs_painting")
             .single();
 
           if (updateError) {
@@ -509,8 +550,10 @@ export default function HydrantMap() {
       // Clear file inputs state
       setFileRavvicinata(null);
       setFilePanoramica(null);
+      setFilePozzetto(null);
       setPreviewRavvicinata(null);
       setPreviewPanoramica(null);
+      setPreviewPozzetto(null);
 
       setMessage("✅ Idrante salvato con successo!");
       setTimeout(() => {
@@ -546,14 +589,13 @@ export default function HydrantMap() {
       distance: userLatLng.distanceTo(L.latLng(h.latitude, h.longitude)),
     }));
 
-    // Ordina per distanza
+    // Ordina per distanza e prendi i più vicini (es. primi 20)
     withDistances.sort((a, b) => a.distance - b.distance);
-
-    const closest = withDistances[0];
-    if (closest) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${closest.latitude},${closest.longitude}`, "_blank");
-      setMessage(`Apertura navigatore verso l'idrante più vicino (a ${Math.round(closest.distance)}m)`);
-    }
+    setClosestHydrantsList(withDistances.slice(0, 20));
+    setIsClosestListOpen(true);
+    setDraftPosition(null);
+    setIsDrawerOpen(false);
+    setSelectedHydrant(null);
   }
 
   return (
@@ -608,131 +650,12 @@ export default function HydrantMap() {
             key={hydrant.id}
             position={[hydrant.latitude, hydrant.longitude]}
             icon={hydrantIcon}
+            eventHandlers={{
+              click: () => {
+                setSelectedHydrant(hydrant);
+              }
+            }}
           >
-            <Popup minWidth={260}>
-              <article className="space-y-3 text-sm text-slate-800">
-                {/* Titolo */}
-                <h3 className="text-sm font-bold text-slate-900 leading-tight uppercase tracking-wider">
-                  {hydrant.code ? `IDRANTE ${hydrant.code}` : "IDRANTE"}
-                </h3>
-
-                {/* Via */}
-                {(hydrant.street || hydrant.street_number) && (
-                  <p className="text-sm font-medium text-slate-700 leading-snug">
-                    {hydrant.street}{hydrant.street && hydrant.street_number ? ` ${hydrant.street_number}` : hydrant.street_number}
-                  </p>
-                )}
-
-                {/* Stato funzionale */}
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Stato:</span>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold mt-0.5 ${
-                    hydrant.status === "Funzionante"
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : hydrant.status === "Non funzionante"
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-amber-50 text-amber-700 border border-amber-200"
-                  }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${
-                      hydrant.status === "Funzionante" ? "bg-emerald-500"
-                      : hydrant.status === "Non funzionante" ? "bg-rose-500"
-                      : "bg-amber-500"
-                    }`} />
-                    {STATUS_LABELS[hydrant.status]}
-                  </span>
-                </div>
-
-                {/* Conservazione */}
-                {hydrant.condition && (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Conservazione:</span>
-                    <span className="text-sm font-semibold">{hydrant.condition}</span>
-                  </div>
-                )}
-
-                {/* Specifiche tecniche */}
-                {hydrant.dn && (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attacchi:</span>
-                    <span className="text-sm font-semibold">{hydrant.dn}</span>
-                  </div>
-                )}
-
-                {/* Tappi / Catene / Coperchio */}
-                <div className="grid grid-cols-3 gap-1 text-center">
-                  <div className="rounded bg-slate-100 px-1 py-1">
-                    <p className="text-[9px] font-bold uppercase text-slate-400">Tappi mancanti</p>
-                    <p className="text-base font-black text-rose-600">{hydrant.caps_quantity ?? 0}</p>
-                  </div>
-                  <div className="rounded bg-slate-100 px-1 py-1">
-                    <p className="text-[9px] font-bold uppercase text-slate-400">Catene mancanti</p>
-                    <p className="text-base font-black text-rose-600">{hydrant.chains_quantity ?? 0}</p>
-                  </div>
-                  <div className="rounded bg-slate-100 px-1 py-1">
-                    <p className="text-[9px] font-bold uppercase text-slate-400">Coperchio</p>
-                    <p className="text-base font-black">{hydrant.attached_pit ? "✅" : "❌"}</p>
-                  </div>
-                </div>
-
-                {/* Note */}
-                {hydrant.notes && (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Note:</span>
-                    <p className="text-xs text-slate-700 leading-snug">{hydrant.notes}</p>
-                  </div>
-                )}
-
-                {/* Foto ravvicinata */}
-                {hydrant.photo_url && (
-                  <div className="pt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Foto ravvicinata:</span>
-                    <a href={hydrant.photo_url} target="_blank" rel="noopener noreferrer">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={hydrant.photo_url}
-                        alt={`Foto ravvicinata idrante ${hydrant.code}`}
-                        className="h-28 w-full rounded-lg object-cover shadow-sm border border-slate-100 hover:opacity-90 transition"
-                      />
-                    </a>
-                  </div>
-                )}
-
-                {/* Pulsante Apri scheda */}
-                <div className="pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftPosition({
-                        latitude: hydrant.latitude,
-                        longitude: hydrant.longitude,
-                      });
-                      setIsDrawerOpen(true);
-                      setForm({
-                        code: hydrant.code,
-                        street: hydrant.street || "",
-                        street_number: hydrant.street_number || "",
-                        type: hydrant.type,
-                        connections: hydrant.connections || [],
-                        status: hydrant.status,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        condition: (hydrant.condition as HydrantCondition) || "DISCRETO",
-                        uni45Count: 0,
-                        uni70Count: 0,
-                        missingCaps: hydrant.caps_quantity ?? 0,
-                        missingChains: hydrant.chains_quantity ?? 0,
-                        hasCover: hydrant.attached_pit ?? false,
-                        sign_present: hydrant.sign_present !== undefined ? hydrant.sign_present : null,
-                        accessibility: hydrant.accessibility || "",
-                        notes: hydrant.notes || "",
-                      });
-                    }}
-                    className="w-full text-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-1.5 transition"
-                  >
-                    ✏️ Modifica scheda
-                  </button>
-                </div>
-              </article>
-            </Popup>
             <Tooltip direction="top" offset={[0, -24]}>
               {hydrant.code} - {STATUS_LABELS[hydrant.status]}
             </Tooltip>
@@ -1024,6 +947,103 @@ export default function HydrantMap() {
                     </label>
                   </div>
                 </div>
+
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
+                  <span className="block text-base font-semibold text-slate-800">L&apos;idrante è in pozzetto?</span>
+                  <div className="flex items-center gap-6">
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+                      <input
+                        type="radio"
+                        name="has_pit"
+                        checked={form.has_pit === true}
+                        onChange={() => setForm({ ...form, has_pit: true })}
+                        className="hidden"
+                      />
+                      SI
+                    </label>
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                      <input
+                        type="radio"
+                        name="has_pit"
+                        checked={form.has_pit === false}
+                        onChange={() => setForm({ ...form, has_pit: false, pit_inspectable: null })}
+                        className="hidden"
+                      />
+                      NO
+                    </label>
+                  </div>
+
+                  {form.has_pit && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                      <span className="block text-base font-semibold text-slate-800 mb-3">Il pozzetto è ispezionabile/apribile?</span>
+                      <div className="flex items-center gap-6">
+                        <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+                          <input
+                            type="radio"
+                            name="pit_inspectable"
+                            checked={form.pit_inspectable === true}
+                            onChange={() => setForm({ ...form, pit_inspectable: true })}
+                            className="hidden"
+                          />
+                          SI
+                        </label>
+                        <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                          <input
+                            type="radio"
+                            name="pit_inspectable"
+                            checked={form.pit_inspectable === false}
+                            onChange={() => setForm({ ...form, pit_inspectable: false })}
+                            className="hidden"
+                          />
+                          NO
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {form.has_pit && form.pit_inspectable && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                      <span className="block text-base font-semibold text-slate-800 mb-2">📷 Foto Interno Pozzetto</span>
+                      <div
+                        className={`group relative flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-all active:scale-[0.98] ${
+                          filePozzetto ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-slate-100"
+                        }`}
+                        onClick={() => inputPozzettoRef.current?.click()}
+                      >
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          className="hidden"
+                          ref={inputPozzettoRef}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setFilePozzetto(file);
+                              setPreviewPozzetto(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                        {previewPozzetto ? (
+                          <div className="absolute inset-0 overflow-hidden rounded-xl">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={previewPozzetto} alt="Preview Pozzetto" className="h-full w-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 grid place-items-center">
+                              <span className="text-white font-semibold flex items-center gap-2"><Camera size={18} /> Cambia Foto</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="rounded-full bg-white p-3 shadow-sm text-blue-600">
+                              <Camera size={24} />
+                            </div>
+                            <span className="text-sm font-semibold text-slate-600">Scatta o Scegli...</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1054,7 +1074,7 @@ export default function HydrantMap() {
                 <div>
                   <label className="mb-3 block text-base font-bold text-slate-800">Stato di Conservazione</label>
                   <div className="grid grid-cols-1 gap-3">
-                    {["NUOVO", "DISCRETO", "SUFFICIENTE", "PESSIMO / DANNEGGIATO", "DA VERNICIARE"].map((conditionOption) => (
+                    {["NUOVO", "DISCRETO", "SUFFICIENTE", "PESSIMO / DANNEGGIATO"].map((conditionOption) => (
                       <label key={conditionOption} className="flex min-h-[56px] items-center gap-4 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-semibold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
                         <input
                           type="radio"
@@ -1067,6 +1087,32 @@ export default function HydrantMap() {
                         {conditionOption}
                       </label>
                     ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="mb-3 block text-base font-bold text-slate-800">Da Verniciare?</label>
+                  <div className="flex items-center gap-6">
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                      <input
+                        type="radio"
+                        name="needs_painting"
+                        checked={form.needs_painting === true}
+                        onChange={() => setForm({ ...form, needs_painting: true })}
+                        className="hidden"
+                      />
+                      SI
+                    </label>
+                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-green-400 has-[:checked]:border-green-600 has-[:checked]:bg-green-50 has-[:checked]:text-green-700">
+                      <input
+                        type="radio"
+                        name="needs_painting"
+                        checked={form.needs_painting === false}
+                        onChange={() => setForm({ ...form, needs_painting: false })}
+                        className="hidden"
+                      />
+                      NO
+                    </label>
                   </div>
                 </div>
             </div>
@@ -1274,6 +1320,205 @@ export default function HydrantMap() {
         </div>
       )}
 
+      {/* Modal Idrante Più Vicino */}
+      {isClosestListOpen && (
+        <div className="absolute inset-0 z-[600] flex flex-col bg-slate-50 md:inset-y-4 md:inset-x-4 md:rounded-3xl md:shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6">
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <Siren className="text-blue-600" /> Idranti più vicini
+            </h2>
+            <button
+              onClick={() => setIsClosestListOpen(false)}
+              className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+            {closestHydrantsList.map((h, i) => (
+              <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div>
+                  <h3 className="font-bold text-slate-800">
+                    {i + 1}. Idrante {h.code}
+                  </h3>
+                  {(h.street || h.street_number) && (
+                    <p className="text-xs text-slate-500 mt-0.5">{h.street} {h.street_number}</p>
+                  )}
+                  <p className="text-sm font-semibold text-blue-600 mt-1">
+                    📍 {Math.round(h.distance)} metri
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setIsClosestListOpen(false);
+                      setSelectedHydrant(h);
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                  >
+                    Vedi
+                  </button>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    🗺️ Naviga
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scheda Dettaglio Idrante Full Screen */}
+      {selectedHydrant && (
+        <div className="absolute inset-0 z-[600] flex flex-col bg-slate-50 md:inset-y-4 md:inset-x-4 md:rounded-3xl md:shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">
+                {selectedHydrant.code ? `IDRANTE ${selectedHydrant.code}` : "IDRANTE"}
+              </h2>
+              {(selectedHydrant.street || selectedHydrant.street_number) && (
+                <p className="text-sm font-semibold text-slate-500 mt-1">
+                  {selectedHydrant.street} {selectedHydrant.street_number}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setSelectedHydrant(null)}
+              className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Stato Funzionale</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold mt-0.5 ${
+                  selectedHydrant.status === "Funzionante"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : selectedHydrant.status === "Non funzionante"
+                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                }`}>
+                  {STATUS_LABELS[selectedHydrant.status]}
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Conservazione</span>
+                <span className="text-sm font-semibold">{selectedHydrant.condition || "-"}</span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Tipo</span>
+                <span className="text-sm font-semibold">{selectedHydrant.type}</span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Attacchi (DN)</span>
+                <span className="text-sm font-semibold">{selectedHydrant.dn || "-"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Accessori & Pozzetto</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Tappi Mancanti</span>
+                  <span className="text-lg font-black text-slate-700">{selectedHydrant.caps_quantity ?? 0}</span>
+                </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Catene Mancanti</span>
+                  <span className="text-lg font-black text-slate-700">{selectedHydrant.chains_quantity ?? 0}</span>
+                </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">In Pozzetto?</span>
+                  <span className="text-lg font-black text-slate-700">{selectedHydrant.has_pit ? "SI" : "NO"}</span>
+                </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Ispezionabile?</span>
+                  <span className="text-lg font-black text-slate-700">{selectedHydrant.pit_inspectable === true ? "SI" : (selectedHydrant.pit_inspectable === false ? "NO" : "-")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Note Generali</h3>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap">{selectedHydrant.notes || "Nessuna nota presente."}</p>
+            </div>
+
+            {/* Foto Section */}
+            {(selectedHydrant.photo_url || selectedHydrant.pit_photo_url || (selectedHydrant.notes && selectedHydrant.notes.includes("Foto Panoramica"))) && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Documentazione Fotografica</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {selectedHydrant.photo_url && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Ravvicinata / Dettaglio</span>
+                      <a href={selectedHydrant.photo_url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedHydrant.photo_url} alt="Ravvicinata" className="w-full h-40 object-cover rounded-xl border border-slate-200 hover:opacity-90" />
+                      </a>
+                    </div>
+                  )}
+                  {selectedHydrant.pit_photo_url && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Interno Pozzetto</span>
+                      <a href={selectedHydrant.pit_photo_url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedHydrant.pit_photo_url} alt="Pozzetto" className="w-full h-40 object-cover rounded-xl border border-slate-200 hover:opacity-90" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer - Modifica */}
+          <div className="border-t border-slate-200 bg-white p-4 md:p-6">
+            <button
+              onClick={() => {
+                setSelectedHydrant(null);
+                setDraftPosition({
+                  latitude: selectedHydrant.latitude,
+                  longitude: selectedHydrant.longitude,
+                });
+                setIsDrawerOpen(true);
+                setForm({
+                  code: selectedHydrant.code,
+                  street: selectedHydrant.street || "",
+                  street_number: selectedHydrant.street_number || "",
+                  type: selectedHydrant.type,
+                  connections: selectedHydrant.connections || [],
+                  status: selectedHydrant.status,
+                  condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
+                  uni45Count: 0,
+                  uni70Count: 0,
+                  missingCaps: selectedHydrant.caps_quantity ?? 0,
+                  missingChains: selectedHydrant.chains_quantity ?? 0,
+                  hasCover: selectedHydrant.attached_pit ?? false,
+                  sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
+                  accessibility: selectedHydrant.accessibility || "",
+                  notes: selectedHydrant.notes || "",
+                  has_pit: selectedHydrant.has_pit ?? null,
+                  pit_inspectable: selectedHydrant.pit_inspectable ?? null,
+                  needs_painting: selectedHydrant.needs_painting ?? null,
+                });
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.98]"
+            >
+              <Pencil size={18} /> Modifica Scheda Tecnica
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
