@@ -1402,33 +1402,34 @@ export default function HydrantMap() {
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
               {closestHydrantsList.map((h, i) => (
-                <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200">
+                <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300">
                   <div>
-                    <h3 className="font-bold text-slate-800">
-                      {i + 1}. Idrante {h.code}
-                    </h3>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-slate-900">{i + 1}.</span>
+                      <span className="text-xl font-black text-slate-800">{h.code}</span>
+                    </div>
                     {(h.street || h.street_number) && (
-                      <p className="text-xs text-slate-500 mt-0.5">{h.street} {h.street_number}</p>
+                      <p className="text-sm font-semibold text-slate-600 mt-0.5">📍 {h.street} {h.street_number}</p>
                     )}
-                    <p className="text-sm font-semibold text-blue-600 mt-1">
-                      📍 {Math.round(h.distance)} metri
+                    <p className="text-lg font-black text-blue-600 mt-1">
+                      {Math.round(h.distance)} <span className="text-sm font-bold">metri</span>
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => {
                         setIsClosestListOpen(false);
                         setSelectedHydrant(h);
                       }}
-                      className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-base font-bold text-white transition hover:bg-slate-700 active:scale-95 min-h-[48px]"
                     >
-                      Vedi
+                      Dettagli
                     </button>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-base font-bold text-white transition hover:bg-indigo-700 active:scale-95 min-h-[48px]"
                     >
                       🗺️ Naviga
                     </a>
@@ -1442,103 +1443,144 @@ export default function HydrantMap() {
 
       {/* Scheda Dettaglio Idrante Full Screen */}
       {selectedHydrant && (
-        <div className="absolute inset-0 z-[600] flex flex-col bg-slate-50 md:inset-y-4 md:inset-x-4 md:rounded-3xl md:shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute inset-0 z-[600] flex flex-col bg-slate-100 md:inset-y-4 md:inset-x-4 md:rounded-3xl md:shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6">
+          <div className={`flex items-center justify-between px-4 py-5 md:px-6 ${
+            selectedHydrant.status === "Non funzionante"
+              ? "bg-rose-600"
+              : selectedHydrant.status === "Funzionante"
+              ? "bg-emerald-600"
+              : "bg-amber-500"
+          }`}>
             <div>
-              <h2 className="text-xl font-black text-slate-900">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-0.5">
+                {selectedHydrant.type}
+              </p>
+              <h2 className="text-2xl font-black text-white leading-tight">
                 {selectedHydrant.code ? `IDRANTE ${selectedHydrant.code}` : "IDRANTE"}
               </h2>
               {(selectedHydrant.street || selectedHydrant.street_number) && (
-                <p className="text-sm font-semibold text-slate-500 mt-1">
-                  {selectedHydrant.street} {selectedHydrant.street_number}
+                <p className="text-base font-semibold text-white/90 mt-1">
+                  📍 {selectedHydrant.street} {selectedHydrant.street_number}
                 </p>
               )}
             </div>
             <button
               onClick={() => setSelectedHydrant(null)}
-              className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Stato Funzionale</span>
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold mt-0.5 ${
-                  selectedHydrant.status === "Funzionante"
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : selectedHydrant.status === "Non funzionante"
-                    ? "bg-rose-50 text-rose-700 border border-rose-200"
-                    : "bg-amber-50 text-amber-700 border border-amber-200"
+          <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+
+            {/* Stato + Naviga */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`rounded-2xl p-4 flex flex-col gap-1 ${
+                selectedHydrant.status === "Funzionante"
+                  ? "bg-emerald-50 border-2 border-emerald-300"
+                  : selectedHydrant.status === "Non funzionante"
+                  ? "bg-rose-50 border-2 border-rose-300"
+                  : "bg-amber-50 border-2 border-amber-300"
+              }`}>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">💧 Stato</span>
+                <span className={`text-lg font-black leading-tight ${
+                  selectedHydrant.status === "Funzionante" ? "text-emerald-700"
+                  : selectedHydrant.status === "Non funzionante" ? "text-rose-700"
+                  : "text-amber-700"
                 }`}>
                   {STATUS_LABELS[selectedHydrant.status]}
                 </span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Conservazione</span>
-                <span className="text-sm font-semibold">{selectedHydrant.condition || "-"}</span>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Tipo</span>
-                <span className="text-sm font-semibold">{selectedHydrant.type}</span>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Attacchi (DN)</span>
-                <span className="text-sm font-semibold">{selectedHydrant.dn || "-"}</span>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedHydrant.latitude},${selectedHydrant.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-indigo-600 p-4 text-white transition hover:bg-indigo-700 active:scale-95"
+              >
+                <span className="text-2xl">🗺️</span>
+                <span className="text-sm font-black">NAVIGA</span>
+              </a>
+            </div>
+
+            {/* Dati tecnici */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">🔧 Dati Tecnici</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">Tipo</span>
+                  <span className="text-lg font-black text-slate-800">{selectedHydrant.type}</span>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">Attacchi DN</span>
+                  <span className="text-lg font-black text-slate-800">{selectedHydrant.dn || "—"}</span>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">Conservazione</span>
+                  <span className="text-lg font-black text-slate-800">{selectedHydrant.condition || "—"}</span>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">Segnale</span>
+                  <span className="text-lg font-black text-slate-800">{selectedHydrant.sign_present ? "✅ Sì" : "❌ No"}</span>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-              <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Accessori & Pozzetto</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Tappi Mancanti</span>
-                  <span className="text-lg font-black text-slate-700">{selectedHydrant.caps_quantity ?? 0}</span>
+            {/* Accessori */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">🕳️ Accessori & Pozzetto</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`rounded-xl p-3 border-2 ${(selectedHydrant.caps_quantity ?? 0) > 0 ? "bg-rose-50 border-rose-300" : "bg-slate-50 border-slate-200"}`}>
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Tappi Mancanti</span>
+                  <span className={`text-3xl font-black ${(selectedHydrant.caps_quantity ?? 0) > 0 ? "text-rose-600" : "text-slate-800"}`}>{selectedHydrant.caps_quantity ?? 0}</span>
                 </div>
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Catene Mancanti</span>
-                  <span className="text-lg font-black text-slate-700">{selectedHydrant.chains_quantity ?? 0}</span>
+                <div className={`rounded-xl p-3 border-2 ${(selectedHydrant.chains_quantity ?? 0) > 0 ? "bg-rose-50 border-rose-300" : "bg-slate-50 border-slate-200"}`}>
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Catene Mancanti</span>
+                  <span className={`text-3xl font-black ${(selectedHydrant.chains_quantity ?? 0) > 0 ? "text-rose-600" : "text-slate-800"}`}>{selectedHydrant.chains_quantity ?? 0}</span>
                 </div>
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">In Pozzetto?</span>
-                  <span className="text-lg font-black text-slate-700">{selectedHydrant.has_pit ? "SI" : "NO"}</span>
+                <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">In Pozzetto?</span>
+                  <span className="text-xl font-black text-slate-800">{selectedHydrant.has_pit ? "✅ SI" : "❌ NO"}</span>
                 </div>
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Ispezionabile?</span>
-                  <span className="text-lg font-black text-slate-700">{selectedHydrant.pit_inspectable === true ? "SI" : (selectedHydrant.pit_inspectable === false ? "NO" : "-")}</span>
+                <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Ispezionabile?</span>
+                  <span className="text-xl font-black text-slate-800">
+                    {selectedHydrant.pit_inspectable === true ? "✅ SI" : selectedHydrant.pit_inspectable === false ? "❌ NO" : "—"}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-              <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Note Generali</h3>
-              <p className="text-sm text-slate-600 whitespace-pre-wrap">{selectedHydrant.notes || "Nessuna nota presente."}</p>
+            {/* Note */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">📝 Note</h3>
+              <p className="text-base font-semibold text-slate-800 whitespace-pre-wrap leading-relaxed">
+                {selectedHydrant.notes || "Nessuna nota presente."}
+              </p>
             </div>
 
             {/* Foto Section */}
-            {(selectedHydrant.photo_url || selectedHydrant.pit_photo_url || (selectedHydrant.notes && selectedHydrant.notes.includes("Foto Panoramica"))) && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Documentazione Fotografica</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(selectedHydrant.photo_url || selectedHydrant.pit_photo_url) && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">📷 Documentazione Fotografica</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {selectedHydrant.photo_url && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400">Ravvicinata / Dettaglio</span>
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold uppercase text-slate-500 block">Ravvicinata / Dettaglio</span>
                       <a href={selectedHydrant.photo_url} target="_blank" rel="noopener noreferrer">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={selectedHydrant.photo_url} alt="Ravvicinata" className="w-full h-40 object-cover rounded-xl border border-slate-200 hover:opacity-90" />
+                        <img src={selectedHydrant.photo_url} alt="Ravvicinata" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
                       </a>
                     </div>
                   )}
                   {selectedHydrant.pit_photo_url && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400">Interno Pozzetto</span>
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold uppercase text-slate-500 block">Interno Pozzetto</span>
                       <a href={selectedHydrant.pit_photo_url} target="_blank" rel="noopener noreferrer">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={selectedHydrant.pit_photo_url} alt="Pozzetto" className="w-full h-40 object-cover rounded-xl border border-slate-200 hover:opacity-90" />
+                        <img src={selectedHydrant.pit_photo_url} alt="Pozzetto" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
                       </a>
                     </div>
                   )}
