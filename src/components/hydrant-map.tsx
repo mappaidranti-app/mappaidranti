@@ -570,6 +570,21 @@ export default function HydrantMap() {
     }
   }
 
+  function calculateDistanceHaversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371e3; // Raggio terrestre in metri
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  }
+
   function findClosestHydrants() {
     if (!userPosition) {
       setMessage("Posizione non disponibile. Premi il tasto geolocalizzazione.");
@@ -581,17 +596,15 @@ export default function HydrantMap() {
       return;
     }
 
-    const userLatLng = L.latLng(userPosition.latitude, userPosition.longitude);
-    
-    // Calcola le distanze (in metri)
+    // Calcola le distanze (in metri) usando la formula di Haversine
     const withDistances = hydrants.map((h) => ({
       ...h,
-      distance: userLatLng.distanceTo(L.latLng(h.latitude, h.longitude)),
+      distance: calculateDistanceHaversine(userPosition.latitude, userPosition.longitude, h.latitude, h.longitude),
     }));
 
-    // Ordina per distanza e prendi i più vicini (es. primi 20)
+    // Ordina per distanza e mostra i 5 più vicini
     withDistances.sort((a, b) => a.distance - b.distance);
-    setClosestHydrantsList(withDistances.slice(0, 20));
+    setClosestHydrantsList(withDistances.slice(0, 5));
     setIsClosestListOpen(true);
     setDraftPosition(null);
     setIsDrawerOpen(false);
@@ -692,11 +705,9 @@ export default function HydrantMap() {
             type="button"
             onClick={findClosestHydrants}
             disabled={!userPosition || hydrants.length === 0}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Cerca idranti vicini"
-            title="Cerca idranti vicini"
+            className="flex h-8 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-700 shadow-sm transition-all hover:bg-blue-100 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
           >
-            <Search size={15} aria-hidden="true" />
+            📍 Idranti Vicini
           </button>
           <button
             type="button"
@@ -1320,58 +1331,65 @@ export default function HydrantMap() {
         </div>
       )}
 
-      {/* Modal Idrante Più Vicino */}
+      {/* Modal Idrante Più Vicino - Bottom Sheet / Drawer */}
       {isClosestListOpen && (
-        <div className="absolute inset-0 z-[600] flex flex-col bg-slate-50 md:inset-y-4 md:inset-x-4 md:rounded-3xl md:shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6">
-            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <Siren className="text-blue-600" /> Idranti più vicini
-            </h2>
-            <button
-              onClick={() => setIsClosestListOpen(false)}
-              className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
-            >
-              <X size={20} />
-            </button>
-          </div>
+        <>
+          {/* Sfondo scuro opzionale per enfatizzare il bottom sheet */}
+          <div 
+            className="absolute inset-0 z-[550] bg-black/20 backdrop-blur-sm animate-in fade-in"
+            onClick={() => setIsClosestListOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 z-[600] flex max-h-[70vh] flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:bottom-4 md:left-4 md:w-[400px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl animate-in slide-in-from-bottom-full duration-300">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6 rounded-t-3xl md:rounded-t-2xl">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Siren className="text-blue-600" /> Idranti più vicini
+              </h2>
+              <button
+                onClick={() => setIsClosestListOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
-            {closestHydrantsList.map((h, i) => (
-              <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div>
-                  <h3 className="font-bold text-slate-800">
-                    {i + 1}. Idrante {h.code}
-                  </h3>
-                  {(h.street || h.street_number) && (
-                    <p className="text-xs text-slate-500 mt-0.5">{h.street} {h.street_number}</p>
-                  )}
-                  <p className="text-sm font-semibold text-blue-600 mt-1">
-                    📍 {Math.round(h.distance)} metri
-                  </p>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+              {closestHydrantsList.map((h, i) => (
+                <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200">
+                  <div>
+                    <h3 className="font-bold text-slate-800">
+                      {i + 1}. Idrante {h.code}
+                    </h3>
+                    {(h.street || h.street_number) && (
+                      <p className="text-xs text-slate-500 mt-0.5">{h.street} {h.street_number}</p>
+                    )}
+                    <p className="text-sm font-semibold text-blue-600 mt-1">
+                      📍 {Math.round(h.distance)} metri
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setIsClosestListOpen(false);
+                        setSelectedHydrant(h);
+                      }}
+                      className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                    >
+                      Vedi
+                    </button>
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      🗺️ Naviga
+                    </a>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setIsClosestListOpen(false);
-                      setSelectedHydrant(h);
-                    }}
-                    className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-                  >
-                    Vedi
-                  </button>
-                  <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
-                  >
-                    🗺️ Naviga
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Scheda Dettaglio Idrante Full Screen */}
