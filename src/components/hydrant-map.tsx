@@ -163,6 +163,7 @@ export default function HydrantMap() {
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedHydrant, setSelectedHydrant] = useState<Hydrant | null>(null);
   const [isClosestListOpen, setIsClosestListOpen] = useState(false);
@@ -249,11 +250,14 @@ export default function HydrantMap() {
       if (sessionData?.session?.user?.id) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("municipality_id")
+          .select("municipality_id, role")
           .eq("id", sessionData.session.user.id)
           .single();
         if (profile?.municipality_id) {
           setMunicipalityId(profile.municipality_id);
+        }
+        if (profile?.role === "referent") {
+          setIsAdmin(true);
         }
       }
 
@@ -268,11 +272,27 @@ export default function HydrantMap() {
       }
 
       setHydrants((data ?? []) as Hydrant[]);
-      setLoadError(null);
     }
 
     loadHydrants();
   }, []);
+
+  // Intercetta il tasto Indietro per chiudere le modal invece di uscire
+  useEffect(() => {
+    const handlePopState = () => {
+      if (selectedHydrant || isDrawerOpen || isClosestListOpen || draftPosition) {
+        // Se c'è una modal aperta, impediamo di andare indietro ripristinando lo stato
+        window.history.pushState(null, "", window.location.href);
+        setSelectedHydrant(null);
+        setIsDrawerOpen(false);
+        setIsClosestListOpen(false);
+        setDraftPosition(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [selectedHydrant, isDrawerOpen, isClosestListOpen, draftPosition]);
 
   function locateUser() {
     if (!navigator.geolocation) {
@@ -1318,7 +1338,7 @@ export default function HydrantMap() {
       </aside>
 
       {/* Massive Bottom Button for NUOVO IDRANTE */}
-      {!draftPosition && (
+      {isAdmin && !draftPosition && (
         <div className="absolute inset-x-0 bottom-24 z-[500] flex justify-center px-4 pointer-events-none">
           <button
             type="button"
@@ -1500,41 +1520,43 @@ export default function HydrantMap() {
           </div>
 
           {/* Footer - Modifica */}
-          <div className="border-t border-slate-200 bg-white p-4 md:p-6">
-            <button
-              onClick={() => {
-                setSelectedHydrant(null);
-                setDraftPosition({
-                  latitude: selectedHydrant.latitude,
-                  longitude: selectedHydrant.longitude,
-                });
-                setIsDrawerOpen(true);
-                setForm({
-                  code: selectedHydrant.code,
-                  street: selectedHydrant.street || "",
-                  street_number: selectedHydrant.street_number || "",
-                  type: selectedHydrant.type,
-                  connections: selectedHydrant.connections || [],
-                  status: selectedHydrant.status,
-                  condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
-                  uni45Count: 0,
-                  uni70Count: 0,
-                  missingCaps: selectedHydrant.caps_quantity ?? 0,
-                  missingChains: selectedHydrant.chains_quantity ?? 0,
-                  hasCover: selectedHydrant.attached_pit ?? false,
-                  sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
-                  accessibility: selectedHydrant.accessibility || "",
-                  notes: selectedHydrant.notes || "",
-                  has_pit: selectedHydrant.has_pit ?? null,
-                  pit_inspectable: selectedHydrant.pit_inspectable ?? null,
-                  needs_painting: selectedHydrant.needs_painting ?? null,
-                });
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.98]"
-            >
-              <Pencil size={18} /> Modifica Scheda Tecnica
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="border-t border-slate-200 bg-white p-4 md:p-6">
+              <button
+                onClick={() => {
+                  setSelectedHydrant(null);
+                  setDraftPosition({
+                    latitude: selectedHydrant.latitude,
+                    longitude: selectedHydrant.longitude,
+                  });
+                  setIsDrawerOpen(true);
+                  setForm({
+                    code: selectedHydrant.code,
+                    street: selectedHydrant.street || "",
+                    street_number: selectedHydrant.street_number || "",
+                    type: selectedHydrant.type,
+                    connections: selectedHydrant.connections || [],
+                    status: selectedHydrant.status,
+                    condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
+                    uni45Count: 0,
+                    uni70Count: 0,
+                    missingCaps: selectedHydrant.caps_quantity ?? 0,
+                    missingChains: selectedHydrant.chains_quantity ?? 0,
+                    hasCover: selectedHydrant.attached_pit ?? false,
+                    sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
+                    accessibility: selectedHydrant.accessibility || "",
+                    notes: selectedHydrant.notes || "",
+                    has_pit: selectedHydrant.has_pit ?? null,
+                    pit_inspectable: selectedHydrant.pit_inspectable ?? null,
+                    needs_painting: selectedHydrant.needs_painting ?? null,
+                  });
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.98]"
+              >
+                <Pencil size={18} /> Modifica Scheda Tecnica
+              </button>
+            </div>
+          )}
         </div>
       )}
     </main>
