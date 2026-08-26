@@ -28,7 +28,7 @@ import {
   Camera,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import type { Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType } from "@/types/hydrant";
+import type { CappellottoStatus, Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType, PitStatus } from "@/types/hydrant";
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
 const STATUS_LABELS: Record<HydrantStatus, string> = {
@@ -67,13 +67,13 @@ const emptyForm: HydrantFormState = {
   uni70Count: 0,
   missingCaps: 0,
   missingChains: 0,
-  hasCover: false,
   sign_present: null,
   accessibility: "",
   notes: "",
   has_pit: null,
-  pit_inspectable: null,
+  pit_status: null,
   needs_painting: null,
+  cappellotto_status: null,
 };
 
 const hydrantIcon = L.divIcon({
@@ -411,7 +411,6 @@ export default function HydrantMap() {
         caps_quantity: form.missingCaps,
         chains_present: form.missingChains === 0,
         chains_quantity: form.missingChains,
-        attached_pit: form.hasCover,
         notes: form.notes.trim() || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
@@ -424,9 +423,10 @@ export default function HydrantMap() {
         photo_url: null as string | null,
         code: form.code.trim() || null,
         has_pit: form.has_pit,
-        pit_inspectable: form.pit_inspectable,
+        pit_status: form.pit_status,
         needs_painting: form.needs_painting,
         pit_photo_url: null as string | null,
+        cappellotto_status: form.cappellotto_status,
       };
 
       console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
@@ -981,88 +981,78 @@ export default function HydrantMap() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-3">
-                  <span className="block text-base font-semibold text-slate-800">Coperchio / Pozzetto</span>
-                  <div className="flex items-center gap-6">
-                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
-                      <input
-                        type="radio"
-                        name="hasCover"
-                        checked={form.hasCover === true}
-                        onChange={() => setForm({ ...form, hasCover: true })}
-                        className="hidden"
-                      />
-                      PRESENTE
-                    </label>
-                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
-                      <input
-                        type="radio"
-                        name="hasCover"
-                        checked={form.hasCover === false}
-                        onChange={() => setForm({ ...form, hasCover: false })}
-                        className="hidden"
-                      />
-                      ASSENTE
-                    </label>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
-                  <span className="block text-base font-semibold text-slate-800">L&apos;idrante è in pozzetto?</span>
-                  <div className="flex items-center gap-6">
-                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
-                      <input
-                        type="radio"
-                        name="has_pit"
-                        checked={form.has_pit === true}
-                        onChange={() => setForm({ ...form, has_pit: true })}
-                        className="hidden"
-                      />
-                      SI
-                    </label>
-                    <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
-                      <input
-                        type="radio"
-                        name="has_pit"
-                        checked={form.has_pit === false}
-                        onChange={() => setForm({ ...form, has_pit: false, pit_inspectable: null })}
-                        className="hidden"
-                      />
-                      NO
-                    </label>
+                <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4">
+                  <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
+                    🕳️ Pozzetto Valvola (A terra)
+                  </span>
+                  
+                  <div className="space-y-4">
+                    <span className="block text-base font-semibold text-slate-700">Presenza Pozzetto</span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-100 has-[:checked]:text-blue-800">
+                        <input
+                          type="radio"
+                          name="has_pit"
+                          checked={form.has_pit === true}
+                          onChange={() => setForm({ ...form, has_pit: true })}
+                          className="hidden"
+                        />
+                        Presente
+                      </label>
+                      <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-100 has-[:checked]:text-red-800">
+                        <input
+                          type="radio"
+                          name="has_pit"
+                          checked={form.has_pit === false}
+                          onChange={() => setForm({ ...form, has_pit: false, pit_status: null })}
+                          className="hidden"
+                        />
+                        Assente
+                      </label>
+                    </div>
                   </div>
 
                   {form.has_pit && (
-                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-                      <span className="block text-base font-semibold text-slate-800 mb-3">Il pozzetto è ispezionabile/apribile?</span>
-                      <div className="flex items-center gap-6">
-                        <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+                    <div className="pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
+                      <span className="block text-base font-semibold text-slate-700 mb-3">Stato Apertura Pozzetto</span>
+                      <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
                           <input
                             type="radio"
-                            name="pit_inspectable"
-                            checked={form.pit_inspectable === true}
-                            onChange={() => setForm({ ...form, pit_inspectable: true })}
+                            name="pit_status"
+                            checked={form.pit_status === "apre_facilmente"}
+                            onChange={() => setForm({ ...form, pit_status: "apre_facilmente" })}
                             className="hidden"
                           />
-                          SI
+                          Si apre facilmente
                         </label>
-                        <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-3 text-lg font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
                           <input
                             type="radio"
-                            name="pit_inspectable"
-                            checked={form.pit_inspectable === false}
-                            onChange={() => setForm({ ...form, pit_inspectable: false })}
+                            name="pit_status"
+                            checked={form.pit_status === "bloccato"}
+                            onChange={() => setForm({ ...form, pit_status: "bloccato" })}
                             className="hidden"
                           />
-                          NO
+                          Bloccato / Duro
+                        </label>
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-slate-400 has-[:checked]:border-slate-600 has-[:checked]:bg-slate-200 has-[:checked]:text-slate-800">
+                          <input
+                            type="radio"
+                            name="pit_status"
+                            checked={form.pit_status === "non_ispezionabile"}
+                            onChange={() => setForm({ ...form, pit_status: "non_ispezionabile" })}
+                            className="hidden"
+                          />
+                          Non ispezionabile
                         </label>
                       </div>
                     </div>
                   )}
                   
-                  {form.has_pit && form.pit_inspectable && (
-                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-                      <span className="block text-base font-semibold text-slate-800 mb-2">📷 Foto Interno Pozzetto</span>
+                  {form.has_pit && form.pit_status && (
+                    <div className="pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
+                      <span className="block text-base font-semibold text-slate-700 mb-2">📷 Foto interno pozzetto / valvola</span>
                       <div
                         className={`group relative flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-all active:scale-[0.98] ${
                           filePozzetto ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-slate-100"
@@ -1102,6 +1092,45 @@ export default function HydrantMap() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4 mt-4">
+                  <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
+                    🧢 Cappello Colonna Idrante
+                  </span>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+                      <input
+                        type="radio"
+                        name="cappellotto_status"
+                        checked={form.cappellotto_status === "integro"}
+                        onChange={() => setForm({ ...form, cappellotto_status: "integro" })}
+                        className="hidden"
+                      />
+                      Presente e integro
+                    </label>
+                    <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                      <input
+                        type="radio"
+                        name="cappellotto_status"
+                        checked={form.cappellotto_status === "mancante"}
+                        onChange={() => setForm({ ...form, cappellotto_status: "mancante" })}
+                        className="hidden"
+                      />
+                      Mancante
+                    </label>
+                    <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-amber-400 has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50 has-[:checked]:text-amber-700">
+                      <input
+                        type="radio"
+                        name="cappellotto_status"
+                        checked={form.cappellotto_status === "danneggiato"}
+                        onChange={() => setForm({ ...form, cappellotto_status: "danneggiato" })}
+                        className="hidden"
+                      />
+                      Staccato / Danneggiato
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1540,16 +1569,35 @@ export default function HydrantMap() {
                   <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Catene Mancanti</span>
                   <span className={`text-3xl font-black ${(selectedHydrant.chains_quantity ?? 0) > 0 ? "text-rose-600" : "text-slate-800"}`}>{selectedHydrant.chains_quantity ?? 0}</span>
                 </div>
-                <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
-                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">In Pozzetto?</span>
-                  <span className="text-xl font-black text-slate-800">{selectedHydrant.has_pit ? "✅ SI" : "❌ NO"}</span>
-                </div>
-                <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
-                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Ispezionabile?</span>
-                  <span className="text-xl font-black text-slate-800">
-                    {selectedHydrant.pit_inspectable === true ? "✅ SI" : selectedHydrant.pit_inspectable === false ? "❌ NO" : "—"}
+                <div className="col-span-2 rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">🧢 Cappello Colonna</span>
+                  <span className={`text-xl font-black ${
+                    selectedHydrant.cappellotto_status === "mancante" || selectedHydrant.cappellotto_status === "danneggiato" 
+                    ? "text-rose-600" : "text-slate-800"
+                  }`}>
+                    {selectedHydrant.cappellotto_status === "integro" ? "✅ Presente e integro" : 
+                     selectedHydrant.cappellotto_status === "mancante" ? "❌ Mancante" : 
+                     selectedHydrant.cappellotto_status === "danneggiato" ? "⚠️ Danneggiato" : "—"}
                   </span>
                 </div>
+                <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">🕳️ Pozzetto Valvola</span>
+                  <span className="text-xl font-black text-slate-800">{selectedHydrant.has_pit ? "✅ Presente" : "❌ Assente"}</span>
+                </div>
+                {selectedHydrant.has_pit && (
+                  <div className={`rounded-xl p-3 border-2 ${
+                    selectedHydrant.pit_status === "bloccato" ? "bg-rose-50 border-rose-300" : "bg-slate-50 border-slate-200"
+                  }`}>
+                    <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Stato Pozzetto</span>
+                    <span className={`text-xl font-black ${
+                      selectedHydrant.pit_status === "bloccato" ? "text-rose-600" : "text-slate-800"
+                    }`}>
+                      {selectedHydrant.pit_status === "apre_facilmente" ? "✅ Si apre" : 
+                       selectedHydrant.pit_status === "bloccato" ? "❌ Bloccato" : 
+                       selectedHydrant.pit_status === "non_ispezionabile" ? "⚠️ Non ispezionabile" : "—"}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1612,13 +1660,13 @@ export default function HydrantMap() {
                     uni70Count: 0,
                     missingCaps: selectedHydrant.caps_quantity ?? 0,
                     missingChains: selectedHydrant.chains_quantity ?? 0,
-                    hasCover: selectedHydrant.attached_pit ?? false,
                     sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
                     accessibility: selectedHydrant.accessibility || "",
                     notes: selectedHydrant.notes || "",
                     has_pit: selectedHydrant.has_pit ?? null,
-                    pit_inspectable: selectedHydrant.pit_inspectable ?? null,
+                    pit_status: selectedHydrant.pit_status ?? null,
                     needs_painting: selectedHydrant.needs_painting ?? null,
+                    cappellotto_status: selectedHydrant.cappellotto_status ?? null,
                   });
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.98]"
