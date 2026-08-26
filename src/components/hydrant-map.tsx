@@ -664,16 +664,24 @@ export default function HydrantMap() {
             icon={draftIcon}
             draggable={true}
             eventHandlers={{
+              dragstart: () => {
+                setMessage("Trascina il pin nella posizione esatta...");
+              },
+              drag: (e) => {
+                const pos = e.target.getLatLng();
+                setDraftPosition((prev) => prev ? { ...prev, latitude: pos.lat, longitude: pos.lng } : null);
+              },
               dragend: (e) => {
                 const marker = e.target;
                 const pos = marker.getLatLng();
-                setDraftPosition({ latitude: pos.lat, longitude: pos.lng });
+                setDraftPosition((prev) => prev ? { ...prev, latitude: pos.lat, longitude: pos.lng, accuracy: undefined } : null);
                 fetchAddress(pos.lat, pos.lng);
+                setMessage("Posizione aggiornata. Recupero indirizzo...");
               }
             }}
           >
             <Tooltip permanent direction="top" className="font-bold">
-              Nuovo idrante (Trascina)
+              📍 Trascina per posizionare
             </Tooltip>
           </Marker>
         )}
@@ -803,25 +811,45 @@ export default function HydrantMap() {
 
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <MapPinPlus size={16} aria-hidden="true" />
-              Posizione GPS
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <MapPinPlus size={16} aria-hidden="true" />
+                Posizione GPS
+              </div>
+              {userPosition && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const coords = { latitude: userPosition.latitude, longitude: userPosition.longitude, accuracy: userPosition.accuracy };
+                    setDraftPosition(coords);
+                    fetchAddress(coords.latitude, coords.longitude);
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95"
+                >
+                  📍 Ripristina da GPS
+                </button>
+              )}
             </div>
             <div className="mt-2 space-y-2 text-sm text-slate-950">
               {draftPosition ? (
                 <>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Latitudine:</span>
-                    <span className="font-mono">{draftPosition.latitude.toFixed(6)}</span>
+                  <div className="flex gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Latitudine:</span>
+                      <span className="font-mono">{draftPosition.latitude.toFixed(6)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Longitudine:</span>
+                      <span className="font-mono">{draftPosition.longitude.toFixed(6)}</span>
+                    </div>
+                    {draftPosition.accuracy && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Precisione:</span>
+                        <span>±{Math.round(draftPosition.accuracy)} m</span>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Longitudine:</span>
-                    <span className="font-mono">{draftPosition.longitude.toFixed(6)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Precisione GPS:</span>
-                    <span>{draftPosition.accuracy ? `±${Math.round(draftPosition.accuracy)} metri` : "N/D"}</span>
-                  </div>
+                  <p className="text-[11px] text-slate-400 italic">💡 Trascina il pin sulla mappa per correggere la posizione</p>
                 </>
               ) : (
                 <p className="text-slate-500 italic">Acquisizione posizione in corso...</p>
