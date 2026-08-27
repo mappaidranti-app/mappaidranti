@@ -396,7 +396,56 @@ export default function HydrantMap() {
     setMessage("Salvataggio scheda tecnica...");
 
     try {
-      // 1. Salvataggio record idrante (SOLO colonne verificate nel DB)
+      let photoUrl: string | null = null;
+      let pitPhotoUrl: string | null = null;
+      let notesWithPhoto = form.notes.trim();
+
+      // 1. Upload delle foto (con Promise.all per parallelismo)
+      const filesToUpload = [];
+      if (filePanoramica) filesToUpload.push({ type: 'panoramica', file: filePanoramica });
+      if (fileRavvicinata) filesToUpload.push({ type: 'ravvicinata', file: fileRavvicinata });
+      if (filePozzetto) filesToUpload.push({ type: 'pozzetto', file: filePozzetto });
+
+      if (filesToUpload.length > 0) {
+        setMessage(`Caricamento immagini in corso... (0/${filesToUpload.length})`);
+        
+        let uploadedCount = 0;
+        
+        const uploadPromises = filesToUpload.map(async (item) => {
+          const path = buildPhotoPath(item.file);
+          const { error } = await supabase!.storage
+            .from("hydrant-photos")
+            .upload(path, item.file, { upsert: false });
+            
+          if (error) {
+            throw new Error(`Impossibile caricare la foto ${item.type}: ${error.message}`);
+          }
+          
+          const { data } = supabase!.storage.from("hydrant-photos").getPublicUrl(path);
+          
+          uploadedCount++;
+          setMessage(`Caricamento immagini in corso... (${uploadedCount}/${filesToUpload.length})`);
+          
+          return { type: item.type, url: data.publicUrl };
+        });
+
+        // Se un solo upload fallisce, catch cattura l'eccezione, interrompendo prima dell'INSERT
+        const results = await Promise.all(uploadPromises);
+        
+        for (const res of results) {
+          if (res.type === 'panoramica') photoUrl = res.url;
+          else if (res.type === 'pozzetto') pitPhotoUrl = res.url;
+          else if (res.type === 'ravvicinata') {
+            notesWithPhoto = notesWithPhoto
+              ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${res.url}`
+              : `[Foto Ravvicinata]: ${res.url}`;
+          }
+        }
+      }
+
+      setMessage("Salvataggio scheda tecnica nel database...");
+
+      // 2. Salvataggio record idrante
       let calculatedDn = "";
       if (form.uni45Count > 0) calculatedDn += `UNI 45 (${form.uni45Count}) `;
       if (form.uni70Count > 0) calculatedDn += `UNI 70 (${form.uni70Count})`;
@@ -411,7 +460,7 @@ export default function HydrantMap() {
         caps_quantity: form.missingCaps,
         chains_present: form.missingChains === 0,
         chains_quantity: form.missingChains,
-        notes: form.notes.trim() || null,
+        notes: notesWithPhoto || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         municipality_id: municipalityId,
@@ -420,25 +469,22 @@ export default function HydrantMap() {
         street_number: form.street_number.trim() || null,
         connections: form.connections,
         sign_present: form.sign_present,
-        photo_url: null as string | null,
+        photo_url: photoUrl,
         code: form.code.trim() || null,
         has_pit: form.has_pit,
         pit_status: form.pit_status,
         needs_painting: form.needs_painting,
-        pit_photo_url: null as string | null,
+        pit_photo_url: pitPhotoUrl,
         cappellotto_status: form.cappellotto_status,
       };
 
       console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
       console.log("Payload DB:", JSON.stringify(payload, null, 2));
-      console.log("fileRavvicinata:", fileRavvicinata ? `${fileRavvicinata.name} (${fileRavvicinata.size} bytes)` : "null");
-      console.log("filePanoramica:", filePanoramica ? `${filePanoramica.name} (${filePanoramica.size} bytes)` : "null");
-      console.log("filePozzetto:", filePozzetto ? `${filePozzetto.name} (${filePozzetto.size} bytes)` : "null");
 
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_photo_url, needs_painting")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_status, cappellotto_status, pit_photo_url, needs_painting")
         .single();
 
       if (insertError) {
@@ -448,116 +494,7 @@ export default function HydrantMap() {
 
       console.log("[IDRANTYA] Idrante inserito con successo, id:", newHydrant.id, "code:", newHydrant.code);
 
-      // 2. Upload foto — TOLLERANTE AI GUASTI: un errore foto non blocca il salvataggio
-      let photoUrl: string | null = null;
-      let pitPhotoUrl: string | null = null;
-      let notesWithPhoto = form.notes.trim();
-      let photoUpdated = false;
-
-      // BUCKET NAME IN USE: "hydrant-photos"
-      if (filePanoramica) {
-        try {
-          const pathPanoramic = buildPhotoPath(filePanoramica);
-          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload panoramica su path:", pathPanoramic);
-          const { error: uploadErrorPanoramic } = await supabase.storage
-            .from("hydrant-photos")
-            .upload(pathPanoramic, filePanoramica, { upsert: false });
-
-          if (uploadErrorPanoramic) {
-            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathPanoramic}\nErrore: ${uploadErrorPanoramic.message}\nDettaglio: ${JSON.stringify(uploadErrorPanoramic)}`;
-            console.warn("[IDRANTYA] Upload panoramica fallito:", errMsg);
-            alert("⚠️ Errore Upload Foto Panoramica:\n\n" + errMsg);
-          } else {
-            const { data: dataPanoramic } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPanoramic);
-            photoUrl = dataPanoramic.publicUrl;
-            photoUpdated = true;
-            console.log("[IDRANTYA] Panoramica caricata:", photoUrl);
-          }
-        } catch (photoErr) {
-          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
-          console.error("[IDRANTYA] Eccezione upload PANORAMICA — quota/permessi Supabase?", photoErr);
-          alert("⚠️ Eccezione Upload Foto Panoramica:\n\n" + errMsg);
-        }
-      }
-
-      if (fileRavvicinata) {
-        try {
-          const pathCloseUp = buildPhotoPath(fileRavvicinata);
-          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload ravvicinata su path:", pathCloseUp);
-          const { error: uploadErrorCloseUp } = await supabase.storage
-            .from("hydrant-photos")
-            .upload(pathCloseUp, fileRavvicinata, { upsert: false });
-
-          if (uploadErrorCloseUp) {
-            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathCloseUp}\nErrore: ${uploadErrorCloseUp.message}\nDettaglio: ${JSON.stringify(uploadErrorCloseUp)}`;
-            console.warn("[IDRANTYA] Upload ravvicinata fallito:", errMsg);
-            alert("⚠️ Errore Upload Foto Ravvicinata:\n\n" + errMsg);
-          } else {
-            const { data: dataCloseUp } = supabase.storage.from("hydrant-photos").getPublicUrl(pathCloseUp);
-            const closeUpUrl = dataCloseUp.publicUrl;
-            notesWithPhoto = notesWithPhoto
-              ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${closeUpUrl}`
-              : `[Foto Ravvicinata]: ${closeUpUrl}`;
-            photoUpdated = true;
-            console.log("[IDRANTYA] Ravvicinata caricata:", closeUpUrl);
-          }
-        } catch (photoErr) {
-          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
-          console.error("[IDRANTYA] Eccezione upload RAVVICINATA — quota/permessi Supabase?", photoErr);
-          alert("⚠️ Eccezione Upload Foto Ravvicinata:\n\n" + errMsg);
-        }
-      }
-
-      if (filePozzetto) {
-        try {
-          const pathPozzetto = buildPhotoPath(filePozzetto);
-          console.log("[IDRANTYA] Bucket: 'hydrant-photos' | Upload pozzetto su path:", pathPozzetto);
-          const { error: uploadErrorPozzetto } = await supabase.storage
-            .from("hydrant-photos")
-            .upload(pathPozzetto, filePozzetto, { upsert: false });
-
-          if (uploadErrorPozzetto) {
-            const errMsg = `Bucket: 'hydrant-photos'\nPath: ${pathPozzetto}\nErrore: ${uploadErrorPozzetto.message}\nDettaglio: ${JSON.stringify(uploadErrorPozzetto)}`;
-            console.warn("[IDRANTYA] Upload pozzetto fallito:", errMsg);
-            alert("⚠️ Errore Upload Foto Pozzetto:\n\n" + errMsg);
-          } else {
-            const { data: dataPozzetto } = supabase.storage.from("hydrant-photos").getPublicUrl(pathPozzetto);
-            pitPhotoUrl = dataPozzetto.publicUrl;
-            photoUpdated = true;
-            console.log("[IDRANTYA] Pozzetto caricato:", pitPhotoUrl);
-          }
-        } catch (photoErr) {
-          const errMsg = photoErr instanceof Error ? photoErr.message : JSON.stringify(photoErr);
-          console.error("[IDRANTYA] Eccezione upload POZZETTO — quota/permessi Supabase?", photoErr);
-          alert("⚠️ Eccezione Upload Foto Pozzetto:\n\n" + errMsg);
-        }
-      }
-
-      let finalHydrant = newHydrant;
-
-      // 3. Aggiornamento URL foto nel record (opzionale)
-      if (photoUpdated) {
-        try {
-          const { data: updatedHydrant, error: updateError } = await supabase
-            .from("hydrants")
-            .update({
-              photo_url: photoUrl || newHydrant.photo_url,
-              pit_photo_url: pitPhotoUrl || newHydrant.pit_photo_url,
-              notes: notesWithPhoto || null,
-            })
-            .eq("id", newHydrant.id)
-            .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_photo_url, needs_painting")
-            .single();
-
-          if (updateError) {
-            console.warn("[IDRANTYA] Errore UPDATE foto:", updateError.message);
-          } else if (updatedHydrant) {
-            finalHydrant = updatedHydrant;
-          }
-        } catch (updateErr) {
-          console.warn("[IDRANTYA] Eccezione UPDATE foto:", updateErr);
-        }
-      }
+      const finalHydrant = newHydrant;
 
       // 4. Aggiorna UI e resetta form
       setHydrants((current) => [finalHydrant as Hydrant, ...current]);
@@ -1380,7 +1317,7 @@ export default function HydrantMap() {
               {isSaving ? (
                 <>
                   <Loader2 size={22} className="animate-spin" aria-hidden="true" />
-                  Salvataggio in corso...
+                  {(message.includes("Caricamento") || message.includes("Salvataggio")) ? message : "Salvataggio in corso..."}
                 </>
               ) : (
                 <>
