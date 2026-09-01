@@ -62,12 +62,14 @@ const emptyForm: HydrantFormState = {
   street_number: "",
   type: "A COLONNA",
   connections: [],
-  status: "Funzionante",
-  condition: "DISCRETO",
+  status: null,
+  condition: null,
   uni45Count: 0,
   uni70Count: 0,
-  missingCaps: 0,
-  missingChains: 0,
+  caps_status: null,
+  missingCaps: null,
+  chains_status: null,
+  missingChains: null,
   sign_present: null,
   accessibility: "",
   notes: "",
@@ -910,25 +912,53 @@ export default function HydrantMap() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
-                  <span className="block text-base font-semibold text-slate-800">Tappi e Catenelle</span>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-600">Tappi Mancanti</span>
-                      <div className="flex items-center gap-3">
-                        <button type="button" onClick={() => setForm(f => ({ ...f, missingCaps: Math.max(0, f.missingCaps - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">-</button>
-                        <span className="w-8 text-center text-xl font-bold">{form.missingCaps}</span>
-                        <button type="button" onClick={() => setForm(f => ({ ...f, missingCaps: f.missingCaps + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">+</button>
-                      </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-6">
+                  <div>
+                    <span className="block text-base font-semibold text-slate-800 mb-3">Tappi (Ciechi)</span>
+                    <div className="flex flex-col gap-3">
+                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
+                        <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "OK"} onChange={() => setForm({ ...form, caps_status: "OK", missingCaps: 0 })} />
+                        ✓ TUTTI PRESENTI E INTEGRI
+                      </label>
+                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
+                        <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "KO"} onChange={() => setForm({ ...form, caps_status: "KO", missingCaps: form.missingCaps || 1 })} />
+                        ❌ MANCANTI / DANNEGGIATI
+                      </label>
                     </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-600">Catene Mancanti</span>
-                      <div className="flex items-center gap-3">
-                        <button type="button" onClick={() => setForm(f => ({ ...f, missingChains: Math.max(0, f.missingChains - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">-</button>
-                        <span className="w-8 text-center text-xl font-bold">{form.missingChains}</span>
-                        <button type="button" onClick={() => setForm(f => ({ ...f, missingChains: f.missingChains + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-red-200 bg-white text-xl font-bold text-red-600 active:scale-95">+</button>
+                    {form.caps_status === "KO" && (
+                      <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
+                        <span className="font-semibold text-rose-800">Quanti tappi mancano?</span>
+                        <div className="flex gap-2">
+                          {[1, 2, 3].map(num => (
+                            <button key={num} type="button" onClick={() => setForm({ ...form, missingCaps: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingCaps === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
+                          ))}
+                        </div>
                       </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-4">
+                    <span className="block text-base font-semibold text-slate-800 mb-3">Catenelle</span>
+                    <div className="flex flex-col gap-3">
+                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
+                        <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "OK"} onChange={() => setForm({ ...form, chains_status: "OK", missingChains: 0 })} />
+                        ✓ TUTTE PRESENTI E INTEGRE
+                      </label>
+                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
+                        <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "KO"} onChange={() => setForm({ ...form, chains_status: "KO", missingChains: form.missingChains || 1 })} />
+                        ❌ MANCANTI / ROTTE
+                      </label>
                     </div>
+                    {form.chains_status === "KO" && (
+                      <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
+                        <span className="font-semibold text-rose-800">Quante catenelle rotte?</span>
+                        <div className="flex gap-2">
+                          {[1, 2, 3].map(num => (
+                            <button key={num} type="button" onClick={() => setForm({ ...form, missingChains: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingChains === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1316,25 +1346,50 @@ export default function HydrantMap() {
             </Field>
           </div>
 
-          <div style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-base font-bold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-70"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 size={22} className="animate-spin" aria-hidden="true" />
-                  {(message.includes("Caricamento") || message.includes("Salvataggio")) ? message : "Salvataggio in corso..."}
-                </>
-              ) : (
-                <>
-                  <Save size={22} aria-hidden="true" />
-                  NUOVO IDRANTE
-                </>
-              )}
-            </button>
-          </div>
+          {/* Blocco Validazione */}
+          {(() => {
+            const isFormValid = !!(
+              form.street.trim() &&
+              form.status !== null &&
+              form.condition !== null &&
+              form.caps_status !== null &&
+              form.chains_status !== null &&
+              form.has_pit !== null &&
+              (form.has_pit === false || form.pit_status !== null) &&
+              form.cappellotto_status !== null &&
+              form.needs_painting !== null &&
+              form.sign_present !== null &&
+              form.accessibility !== "" &&
+              filePanoramica !== null
+            );
+
+            return (
+              <div style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }} className="space-y-3">
+                {!isFormValid && !isSaving && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                    ⚠️ Compila tutti i campi obbligatori (incluse le scelte SÌ/NO e la foto panoramica) per sbloccare il salvataggio. Solo il "Civico" e le "Note" sono opzionali.
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={isSaving || !isFormValid}
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-base font-bold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:grayscale"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={22} className="animate-spin" aria-hidden="true" />
+                      {(message.includes("Caricamento") || message.includes("Salvataggio")) ? message : "Salvataggio in corso..."}
+                    </>
+                  ) : (
+                    <>
+                      <Save size={22} aria-hidden="true" />
+                      NUOVO IDRANTE
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </form>
         </div>
       </aside>

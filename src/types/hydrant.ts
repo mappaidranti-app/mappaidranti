@@ -53,12 +53,14 @@ export type HydrantFormState = {
   street_number: string;
   type: HydrantType;
   connections: string[];
-  status: HydrantStatus;
-  condition: HydrantCondition;
+  status: HydrantStatus | null;
+  condition: HydrantCondition | null;
   uni45Count: number;
   uni70Count: number;
-  missingCaps: number;
-  missingChains: number;
+  caps_status: "OK" | "KO" | null;
+  missingCaps: number | null;
+  chains_status: "OK" | "KO" | null;
+  missingChains: number | null;
   sign_present: boolean | null;
   accessibility: string;
   notes: string;
