@@ -65,6 +65,8 @@ export default function LoginPage() {
         router.push("/accettazione-termini");
       } else if (profile?.role === "operator") {
         router.push("/");
+      } else if (profile?.role === "superadmin") {
+        router.push("/admin/superadmin");
       } else {
         router.push("/admin");
       }

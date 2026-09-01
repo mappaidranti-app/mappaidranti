@@ -25,6 +25,23 @@ export async function getUserRole(userId: string) {
 }
 
 /**
+ * Funzione di bypass per sviluppatori: aggiorna il ruolo dell'utente corrente a superadmin
+ */
+export async function upgradeToSuperAdmin(userId: string) {
+  if (!userId) return { error: "Non autenticato" };
+
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({ role: "superadmin", municipality_id: null })
+    .eq("id", userId);
+
+  if (error) return { error: error.message };
+  
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
  * Ottiene i dati per la dashboard bypassando RLS.
  * Se l'utente non ha municipality_id è un super-admin: vede tutti i comuni.
  */
