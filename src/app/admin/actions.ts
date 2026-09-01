@@ -126,7 +126,7 @@ export async function createMunicipality(formData: FormData) {
 
   if (profileErr) return { error: profileErr.message };
 
-  revalidatePath("/dashboard");
+  revalidatePath("/admin/superadmin");
   return { success: true, municipality: newMunicipality };
 }
 
@@ -177,7 +177,7 @@ export async function createOperator(formData: FormData) {
 
   if (profileErr) return { error: profileErr.message };
 
-  revalidatePath("/dashboard");
+  revalidatePath("/admin/superadmin");
   return { success: true };
 }
 
@@ -214,6 +214,6 @@ export async function deleteOperator(operatorId: string, referentId: string) {
   const { error: delUser } = await supabaseAdmin.auth.admin.deleteUser(operatorId);
   if (delUser) return { error: delUser.message };
 
-  revalidatePath("/dashboard");
+  revalidatePath("/admin/superadmin");
   return { success: true };
 }

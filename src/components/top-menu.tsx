@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { getUserRole } from "../app/dashboard/actions";
+import { getUserRole } from "../app/admin/actions";
 
 export function TopMenu() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isReferent, setIsReferent] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -23,10 +24,13 @@ export function TopMenu() {
         const { role } = await getUserRole(session.user.id);
         if (role === "referent") {
           setIsReferent(true);
+        } else if (role === "superadmin") {
+          setIsSuperAdmin(true);
         }
       } else {
         setIsAuthenticated(false);
         setIsReferent(false);
+        setIsSuperAdmin(false);
       }
     }
 
@@ -40,6 +44,7 @@ export function TopMenu() {
         } else {
           setIsAuthenticated(false);
           setIsReferent(false);
+          setIsSuperAdmin(false);
         }
       }
     ) ?? { data: { subscription: { unsubscribe: () => {} } } };
@@ -54,6 +59,7 @@ export function TopMenu() {
       await supabase.auth.signOut();
       setIsAuthenticated(false);
       setIsReferent(false);
+      setIsSuperAdmin(false);
       router.push("/login");
     }
   };
@@ -76,11 +82,11 @@ export function TopMenu() {
         Mappa
       </Link>
       
-      {isReferent && (
+      {(isReferent || isSuperAdmin) && (
         <Link 
-          href="/dashboard"
+          href={isSuperAdmin ? "/admin/superadmin" : "/admin"}
           className={`text-sm font-medium transition-colors ${
-            pathname === "/dashboard" ? "text-blue-600" : "text-gray-600 hover:text-gray-900"
+            pathname.startsWith("/admin") ? "text-blue-600" : "text-gray-600 hover:text-gray-900"
           }`}
         >
           Pannello di Controllo

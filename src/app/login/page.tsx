@@ -6,8 +6,16 @@ import { useRouter } from "next/navigation";
 import { InstallPwaButton } from "@/components/install-pwa-button";
 
 export default function LoginPage() {
+  const [activeTab, setActiveTab] = useState<"operatore" | "admin">("operatore");
+  
+  // Operatore state
+  const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
+  
+  // Admin state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
@@ -19,10 +27,25 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg("");
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    let loginData;
+    
+    if (activeTab === "operatore") {
+      // In this setup, we assume the phone is mapped to an email (e.g. phone@idrantya.local)
+      // or we are using Supabase auth with phone/password.
+      // For demonstration, we'll use email/password but format phone as email if needed.
+      // If phone provider is enabled: supabase.auth.signInWithPassword({ phone, password: pin })
+      loginData = {
+        phone: phone,
+        password: pin,
+      };
+    } else {
+      loginData = {
+        email: email,
+        password: password,
+      };
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword(loginData);
 
     if (error) {
       setErrorMsg(error.message);
@@ -31,76 +54,161 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      router.push("/");
+      // Check if it's first login for operator
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("terms_accepted, role")
+        .eq("id", data.user.id)
+        .single();
+        
+      if (profile?.role === "operator" && !profile?.terms_accepted) {
+        router.push("/accettazione-termini");
+      } else if (profile?.role === "operator") {
+        router.push("/");
+      } else {
+        router.push("/admin");
+      }
     } else {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Accesso Mappa Idranti</h1>
-          <p className="text-gray-500">Accedi per gestire la mappatura idranti</p>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div className="bg-gradient-to-br from-red-600 to-rose-700 p-8 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md mb-4 shadow-inner">
+            <span className="text-3xl">🔥</span>
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tight">IDRANTYA</h1>
+          <p className="text-red-100 font-medium mt-1">Piattaforma Operativa</p>
         </div>
 
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-            {errorMsg}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              placeholder="tu@email.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              placeholder="••••••••"
-            />
+        <div className="p-8">
+          <div className="flex bg-slate-100 rounded-xl p-1 mb-8">
+            <button
+              onClick={() => { setActiveTab("operatore"); setErrorMsg(""); }}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                activeTab === "operatore" 
+                  ? "bg-white text-slate-800 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Operatore
+            </button>
+            <button
+              onClick={() => { setActiveTab("admin"); setErrorMsg(""); }}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                activeTab === "admin" 
+                  ? "bg-white text-slate-800 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Amministratore
+            </button>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white font-medium py-3 px-4 rounded-xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center"
-          >
-            {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+          {errorMsg && (
+            <div className="mb-6 p-4 bg-rose-50 text-rose-700 rounded-xl border border-rose-100 text-sm font-medium flex items-start gap-3">
+              <span className="text-rose-500 mt-0.5">⚠️</span>
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            {activeTab === "operatore" ? (
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2" htmlFor="phone">
+                    Numero di Telefono
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium text-slate-900 placeholder:font-normal"
+                    placeholder="333 1234567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2" htmlFor="pin">
+                    PIN (4 Cifre)
+                  </label>
+                  <input
+                    id="pin"
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    required
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium text-slate-900 placeholder:font-normal tracking-widest text-center text-xl"
+                    placeholder="••••"
+                  />
+                </div>
+              </>
             ) : (
-              "Accedi"
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2" htmlFor="email">
+                    Email Istituzionale
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-900 placeholder:font-normal"
+                    placeholder="admin@comune.it"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2" htmlFor="password">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-900 placeholder:font-normal"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </>
             )}
-          </button>
-        </form>
 
-        {/* PWA install button — shown below login form */}
-        <InstallPwaButton />
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full font-bold py-4 px-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 ${
+                activeTab === "operatore"
+                  ? "bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-500 hover:to-rose-500 shadow-red-600/25"
+                  : "bg-slate-800 text-white hover:bg-slate-700 shadow-slate-900/20"
+              } disabled:opacity-70 disabled:scale-100 active:scale-[0.98]`}
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white"></div>
+                  <span>Accesso in corso...</span>
+                </>
+              ) : (
+                <span>{activeTab === "operatore" ? "ACCEDI ALLA MAPPA" : "ACCEDI AL PANNELLO"}</span>
+              )}
+            </button>
+          </form>
 
-        <p className="mt-6 text-center text-xs text-gray-400">
-          IDRANTYA &copy; {new Date().getFullYear()} — Catasto operativo idranti
-        </p>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <InstallPwaButton />
+            <p className="text-center text-xs font-semibold text-slate-400">
+              IDRANTYA &copy; {new Date().getFullYear()} — VVF & Operatori
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
