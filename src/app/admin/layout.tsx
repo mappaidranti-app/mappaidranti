@@ -14,6 +14,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isUpgrading, setIsUpgrading] = useState(false);
   const router = useRouter();
 
+  const DEV_EMAIL = "mappaidranti@gmail.com";
+
   const checkAuth = async () => {
     if (!supabase) return;
     const { data: { session } } = await supabase.auth.getSession();
@@ -25,16 +27,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     setUserId(session.user.id);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
 
-    if (profile?.role === "referent" || profile?.role === "superadmin") {
-      setRole(profile.role);
-      setIsAuthorized(true);
-    } else {
+      if (error) {
+        console.error("Errore recupero profilo:", error);
+        // Fallback: controlla se è l'email sviluppatore
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email === DEV_EMAIL) {
+          console.warn("Fallback attivo: accesso dev concesso a", DEV_EMAIL);
+          setRole("superadmin");
+          setIsAuthorized(true);
+          return;
+        }
+        setIsAuthorized(false);
+        return;
+      }
+
+      if (profile?.role === "referent" || profile?.role === "superadmin") {
+        setRole(profile.role);
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(false);
+      }
+    } catch (err) {
+      console.error("Errore recupero profilo (eccezione):", err);
+      // Fallback: controlla se è l'email sviluppatore
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email === DEV_EMAIL) {
+        console.warn("Fallback attivo (catch): accesso dev concesso a", DEV_EMAIL);
+        setRole("superadmin");
+        setIsAuthorized(true);
+        return;
+      }
       setIsAuthorized(false);
     }
   };

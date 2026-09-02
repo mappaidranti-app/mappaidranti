@@ -54,21 +54,45 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      // Check if it's first login for operator
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("terms_accepted, role")
-        .eq("id", data.user.id)
-        .single();
-        
-      if (profile?.role === "operator" && !profile?.terms_accepted) {
-        router.push("/accettazione-termini");
-      } else if (profile?.role === "operator") {
+      const DEV_EMAIL = "mappaidranti@gmail.com";
+      
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("terms_accepted, role")
+          .eq("id", data.user.id)
+          .single();
+
+        if (profileError) {
+          console.error("Errore recupero profilo:", profileError);
+          // Fallback per email sviluppatore
+          if (data.user.email === DEV_EMAIL) {
+            console.warn("Fallback login: redirect dev a /admin/superadmin");
+            router.push("/admin/superadmin");
+            return;
+          }
+          // Default: manda alla mappa
+          router.push("/");
+          return;
+        }
+          
+        if (profile?.role === "operator" && !profile?.terms_accepted) {
+          router.push("/accettazione-termini");
+        } else if (profile?.role === "operator") {
+          router.push("/");
+        } else if (profile?.role === "superadmin") {
+          router.push("/admin/superadmin");
+        } else {
+          router.push("/admin");
+        }
+      } catch (err) {
+        console.error("Errore recupero profilo (eccezione):", err);
+        if (data.user.email === DEV_EMAIL) {
+          console.warn("Fallback login (catch): redirect dev a /admin/superadmin");
+          router.push("/admin/superadmin");
+          return;
+        }
         router.push("/");
-      } else if (profile?.role === "superadmin") {
-        router.push("/admin/superadmin");
-      } else {
-        router.push("/admin");
       }
     } else {
       setLoading(false);
