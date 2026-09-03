@@ -272,7 +272,7 @@ export default function HydrantMap() {
 
       const { data, error } = await supabase
         .from("hydrants")
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility, has_pit, pit_status, pit_photo_url, needs_painting, cappellotto_status")
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) {
