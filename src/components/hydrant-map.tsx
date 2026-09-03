@@ -272,7 +272,7 @@ export default function HydrantMap() {
 
       const { data, error } = await supabase
         .from("hydrants")
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility")
+        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, accessibility, has_pit, pit_status, pit_photo_url, needs_painting, cappellotto_status")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -465,10 +465,10 @@ export default function HydrantMap() {
         status: form.status,
         condition: form.condition,
         dn: calculatedDn || null,
-        caps_present: form.missingCaps === 0,
-        caps_quantity: form.missingCaps,
-        chains_present: form.missingChains === 0,
-        chains_quantity: form.missingChains,
+        caps_present: form.caps_status === "OK" ? true : form.caps_status === "KO" ? false : null,
+        caps_quantity: form.missingCaps ?? null,
+        chains_present: form.chains_status === "OK" ? true : form.chains_status === "KO" ? false : null,
+        chains_quantity: form.missingChains ?? null,
         notes: notesWithPhoto || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
@@ -478,6 +478,7 @@ export default function HydrantMap() {
         street_number: form.street_number.trim() || null,
         connections: form.connections,
         sign_present: form.sign_present,
+        accessibility: form.accessibility || null,
         photo_url: photoUrl,
         code: form.code.trim() || null,
         has_pit: form.has_pit,
@@ -964,7 +965,7 @@ export default function HydrantMap() {
 
                 <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4">
                   <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
-                    🕳️ Pozzetto Valvola (A terra)
+                    🕳️ Pozzetto (A terra)
                   </span>
                   <div className="space-y-4">
                     <span className="block text-base font-semibold text-slate-700">Pozzetto presente?</span>
@@ -1567,6 +1568,14 @@ export default function HydrantMap() {
                   <span className="text-xs font-bold uppercase text-slate-400 block mb-1">Segnale</span>
                   <span className="text-lg font-black text-slate-800">{selectedHydrant.sign_present ? "✅ Sì" : "❌ No"}</span>
                 </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">🚗 Accessibilità</span>
+                  <span className="text-base font-black text-slate-800">{selectedHydrant.accessibility || "—"}</span>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">🎨 Da Verniciare</span>
+                  <span className="text-lg font-black text-slate-800">{selectedHydrant.needs_painting === true ? "❌ Sì" : selectedHydrant.needs_painting === false ? "✅ No" : "—"}</span>
+                </div>
               </div>
             </div>
 
@@ -1594,7 +1603,7 @@ export default function HydrantMap() {
                   </span>
                 </div>
                 <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-3">
-                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">🕳️ Pozzetto Valvola</span>
+                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">🕳️ Pozzetto</span>
                   <span className="text-xl font-black text-slate-800">{selectedHydrant.has_pit ? "✅ Presente" : "❌ Assente"}</span>
                 </div>
                 {selectedHydrant.has_pit && (

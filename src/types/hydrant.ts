@@ -4,7 +4,7 @@ export type HydrantCondition = "NUOVO" | "DISCRETO" | "SUFFICIENTE" | "PESSIMO /
 
 export type HydrantType = "A COLONNA" | "SOTTOSUOLO";
 
-/** Stato del pozzetto valvola d'arresto (a terra, affiancato alla colonna) */
+/** Stato del pozzetto (a terra, affiancato alla colonna) */
 export type PitStatus = "apre_facilmente" | "bloccato" | "non_ispezionabile";
 
 /** Stato del cappellotto della colonna idrante */
@@ -35,13 +35,13 @@ export type Hydrant = {
   connections?: string[];
   sign_present?: boolean | null;
   accessibility?: string | null;
-  /** Presenza del pozzetto valvola d'arresto */
+  /** Presenza del pozzetto */
   has_pit?: boolean | null;
   /** @deprecated Usare pit_status */
   pit_inspectable?: boolean | null;
   pit_photo_url?: string | null;
   needs_painting?: boolean | null;
-  /** Stato di apertura del pozzetto valvola d'arresto */
+  /** Stato di apertura del pozzetto */
   pit_status?: PitStatus | null;
   /** Stato del cappellotto della colonna idrante */
   cappellotto_status?: CappellottoStatus | null;
@@ -64,7 +64,7 @@ export type HydrantFormState = {
   sign_present: boolean | null;
   accessibility: string;
   notes: string;
-  /** Presenza del pozzetto valvola d'arresto */
+  /** Presenza del pozzetto */
   has_pit: boolean | null;
   /** Stato di apertura del pozzetto */
   pit_status: PitStatus | null;
