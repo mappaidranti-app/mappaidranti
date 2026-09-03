@@ -182,6 +182,11 @@ export default function HydrantMap() {
   const inputPanoramicaRef = useRef<HTMLInputElement>(null);
   const inputPozzettoRef = useRef<HTMLInputElement>(null);
 
+  // Ricerca e filtro stato
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
   const stats = useMemo(
     () => ({
       total: hydrants.length,
@@ -191,6 +196,19 @@ export default function HydrantMap() {
     }),
     [hydrants],
   );
+
+  const filteredHydrants = useMemo(() => {
+    return hydrants.filter((h) => {
+      const matchesStatus = statusFilter === "" || h.status === statusFilter;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        q === "" ||
+        (h.code && h.code.toLowerCase().includes(q)) ||
+        (h.street && h.street.toLowerCase().includes(q)) ||
+        (h.street_number && h.street_number.toLowerCase().includes(q));
+      return matchesStatus && matchesSearch;
+    });
+  }, [hydrants, searchQuery, statusFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 2000);
@@ -677,7 +695,7 @@ export default function HydrantMap() {
           </Marker>
         )}
 
-        {hydrants.map((hydrant) => (
+        {filteredHydrants.map((hydrant) => (
           <Marker
             key={hydrant.id}
             position={[hydrant.latitude, hydrant.longitude]}
@@ -694,15 +712,19 @@ export default function HydrantMap() {
           </Marker>
         ))}
 
-        {hydrants.map((hydrant) => {
+        {filteredHydrants.map((hydrant) => {
           const isClosest = closestHydrantsIds.has(hydrant.id);
+          const statusColor =
+            hydrant.status === "Non funzionante" ? "#e11d48"
+            : hydrant.status === "Da verificare" ? "#f59e0b"
+            : "#10b981"; // Funzionante
           return (
             <CircleMarker
               key={`${hydrant.id}-range`}
               center={[hydrant.latitude, hydrant.longitude]}
               radius={isClosest ? 20 : 10}
               pathOptions={{
-                color: isClosest ? "#06b6d4" : (hydrant.status === "Non funzionante" ? "#e11d48" : "#10b981"),
+                color: isClosest ? "#06b6d4" : statusColor,
                 fillOpacity: isClosest ? 0.3 : 0.1,
                 weight: isClosest ? 2 : 1,
               }}
@@ -711,33 +733,98 @@ export default function HydrantMap() {
         })}
       </MapContainer>
 
-      {/* Header compatto - logo, utilities e pulsante nuovo idrante */}
-      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex justify-center p-3">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
-            <Siren size={16} aria-hidden="true" />
+      {/* ── TOP BAR ── Logo + Idranti Vicini + Cerca + Filtri */}
+      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col items-center gap-2 p-3">
+
+        {/* Riga 1: Logo | Idranti Vicini | Localizza */}
+        <div className="pointer-events-auto flex w-full max-w-xl items-center gap-2 rounded-2xl border border-white/60 bg-white/90 px-3 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/20">
+            <Siren size={18} aria-hidden="true" />
           </div>
-          <span className="hidden text-sm font-bold tracking-tight text-slate-900 sm:block">IDRANTYA</span>
+          <span className="hidden text-sm font-black tracking-tight text-slate-900 sm:block">IDRANTYA</span>
           <span className="sr-only">{message}</span>
           <div className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" aria-hidden="true" />
+
+          {/* Idranti Vicini — più grande e prominente */}
           <button
             type="button"
             onClick={findClosestHydrants}
             disabled={!userPosition || hydrants.length === 0}
-            className="flex h-10 sm:h-12 items-center gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-4 sm:px-6 text-base sm:text-lg font-black text-indigo-700 shadow-md transition-all hover:bg-indigo-100 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-indigo-400 bg-indigo-600 px-4 py-2.5 text-base font-black tracking-wide text-white shadow-lg shadow-indigo-600/30 transition-all hover:bg-indigo-700 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
           >
-            📍 Idranti Vicini
+            <LocateFixed size={18} aria-hidden="true" />
+            Idranti Vicini
           </button>
+
+          {/* Cerca */}
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(prev => !prev)}
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition-all active:scale-95 ${isSearchOpen ? "border-blue-400 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600"}`}
+            aria-label="Cerca idrante"
+            title="Cerca idrante"
+          >
+            <Search size={18} aria-hidden="true" />
+          </button>
+
+          {/* Localizza */}
           <button
             type="button"
             onClick={locateUser}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
             aria-label="Centra sulla posizione utente"
             title="Centra sulla posizione utente"
           >
-            <LocateFixed size={15} aria-hidden="true" />
+            <Crosshair size={18} aria-hidden="true" />
           </button>
         </div>
+
+        {/* Riga 2: Pannello Cerca + Filtri (appare quando isSearchOpen) */}
+        {isSearchOpen && (
+          <div className="pointer-events-auto w-full max-w-xl animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="rounded-2xl border border-white/60 bg-white/95 px-3 py-3 shadow-xl shadow-slate-900/10 backdrop-blur-xl space-y-2">
+              {/* Campo di testo ricerca */}
+              <div className="relative flex items-center">
+                <Search size={16} className="absolute left-3 text-slate-400 pointer-events-none" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Cerca per codice o via..."
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-slate-50 pl-9 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 grid h-6 w-6 place-items-center rounded text-slate-400 hover:text-slate-700"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtri stato */}
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { label: "Tutti", value: "" as const, cls: "bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200" },
+                  { label: "✅ Funzionante", value: "Funzionante" as const, cls: "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100" },
+                  { label: "❌ Non funz.", value: "Non funzionante" as const, cls: "bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100" },
+                  { label: "⚠️ Da verificare", value: "Da verificare" as const, cls: "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100" },
+                ] as const).map(({ label, value, cls }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setStatusFilter(value)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${cls} ${statusFilter === value ? "ring-2 ring-offset-1 ring-blue-500 scale-[1.05]" : ""}`}
+                  >
+                    {label} {value !== "" ? `(${stats[value === "Funzionante" ? "working" : value === "Non funzionante" ? "broken" : "review"]})` : `(${stats.total})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
 
@@ -1432,17 +1519,21 @@ export default function HydrantMap() {
         </div>
       </aside>
 
-      {/* Massive Bottom Button for NUOVO IDRANTE */}
+      {/* ── PULSANTE NUOVO IDRANTE — Grande e ben visibile ── */}
       {isAdmin && !draftPosition && (
-        <div className="absolute inset-x-0 bottom-24 z-[500] flex justify-center px-4 pointer-events-none">
-          <button
-            type="button"
-            onClick={handleNuovoIdrante}
-            className="pointer-events-auto flex w-full max-w-sm items-center justify-center gap-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 py-4 px-6 text-lg font-black tracking-wide text-white shadow-[0_10px_40px_rgba(37,99,235,0.4)] transition-transform hover:scale-[1.02] active:scale-95 border-2 border-white/20"
-          >
-            <MapPinPlus size={24} aria-hidden="true" />
-            NUOVO IDRANTE
-          </button>
+        <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
+          <div className="relative pointer-events-auto">
+            {/* Alone pulsante per attirare l'attenzione */}
+            <span className="absolute inset-0 rounded-full animate-ping bg-blue-500/30" />
+            <button
+              type="button"
+              onClick={handleNuovoIdrante}
+              className="relative flex w-full min-w-[260px] max-w-xs items-center justify-center gap-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 py-5 px-8 text-xl font-black tracking-wide text-white shadow-[0_12px_50px_rgba(37,99,235,0.5)] transition-transform hover:scale-[1.03] hover:shadow-[0_16px_60px_rgba(37,99,235,0.6)] active:scale-95 border-[3px] border-white/30"
+            >
+              <MapPinPlus size={28} aria-hidden="true" />
+              NUOVO IDRANTE
+            </button>
+          </div>
         </div>
       )}
 
