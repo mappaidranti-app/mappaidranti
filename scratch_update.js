@@ -1,4 +1,7 @@
-"use client";
+import fs from 'fs';
+import path from 'path';
+
+const fileContent = `"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -108,7 +111,7 @@ export default function SuperAdminPage() {
         if (result.error) {
           setMessage({ type: "error", text: result.error });
         } else {
-          setMessage({ type: "success", text: `Comune "${munName}" aggiornato con successo!` });
+          setMessage({ type: "success", text: \`Comune "\${munName}" aggiornato con successo!\` });
           resetForm();
           const res = await getDashboardData(referentId);
           if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
@@ -123,7 +126,7 @@ export default function SuperAdminPage() {
         if (result.error) {
           setMessage({ type: "error", text: result.error });
         } else {
-          setMessage({ type: "success", text: `Comune "${munName}" creato con successo!` });
+          setMessage({ type: "success", text: \`Comune "\${munName}" creato con successo!\` });
           resetForm();
           const res = await getDashboardData(referentId);
           if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
@@ -167,7 +170,7 @@ export default function SuperAdminPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-5">{editingMun ? "Modifica Comune" : "Nuovo Comune + Admin Ente"}</h2>
           {message && (
-            <div className={`p-3 rounded-lg mb-4 text-sm font-semibold ${message.type === "error" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+            <div className={\`p-3 rounded-lg mb-4 text-sm font-semibold \${message.type === "error" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}\`}>
               {message.text}
             </div>
           )}
@@ -334,3 +337,7 @@ export default function SuperAdminPage() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync(path.join('d:', 'Progetti Git Hub', 'mappaidranti', 'src', 'app', 'admin', 'superadmin', 'page.tsx'), fileContent, 'utf-8');
+console.log('Done.');

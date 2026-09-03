@@ -92,9 +92,23 @@ export async function getDashboardData(userId: string) {
  */
 export async function createMunicipality(formData: FormData) {
   const municipalityName = formData.get("municipalityName") as string;
-  const referentName = formData.get("referentName") as string;
-  const referentEmail = formData.get("referentEmail") as string;
-  const referentPassword = formData.get("referentPassword") as string;
+  const province = formData.get("province") as string;
+  const notes = formData.get("notes") as string;
+  
+  const ref1Name = formData.get("ref1Name") as string;
+  const ref1Role = formData.get("ref1Role") as string;
+  const ref1Phone = formData.get("ref1Phone") as string;
+  const ref1Email = formData.get("ref1Email") as string;
+  
+  const ref2Name = formData.get("ref2Name") as string;
+  const ref2Role = formData.get("ref2Role") as string;
+  const ref2Phone = formData.get("ref2Phone") as string;
+  const ref2Email = formData.get("ref2Email") as string;
+
+  const adminName = formData.get("adminName") as string;
+  const adminEmail = formData.get("adminEmail") as string;
+  const adminPassword = formData.get("adminPassword") as string;
+  
   const callerUserId = formData.get("callerUserId") as string;
 
   if (!callerUserId) return { error: "Utente non autenticato" };
@@ -112,7 +126,20 @@ export async function createMunicipality(formData: FormData) {
   // Crea il record del comune
   const { data: newMunicipality, error: munErr } = await supabaseAdmin
     .from("municipalities")
-    .insert({ name: municipalityName, contact_name: referentName })
+    .insert({
+      name: municipalityName,
+      contact_name: adminName,
+      province,
+      notes,
+      ref1_name: ref1Name,
+      ref1_role: ref1Role,
+      ref1_phone: ref1Phone,
+      ref1_email: ref1Email,
+      ref2_name: ref2Name,
+      ref2_role: ref2Role,
+      ref2_phone: ref2Phone,
+      ref2_email: ref2Email
+    })
     .select()
     .single();
 
@@ -120,8 +147,8 @@ export async function createMunicipality(formData: FormData) {
 
   // Crea l'utente Supabase per il referente
   const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
-    email: referentEmail,
-    password: referentPassword,
+    email: adminEmail,
+    password: adminPassword,
     email_confirm: true,
     phone_confirm: false,
   });
@@ -132,19 +159,60 @@ export async function createMunicipality(formData: FormData) {
     return { error: userErr.message };
   }
 
-  // Crea il profilo del referente
+  // Crea il profilo del referente (Admin Ente)
   const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
     id: newUser.user.id,
     role: "referent",
     municipality_id: newMunicipality.id,
-    full_name: referentName,
-    email: referentEmail,
+    full_name: adminName,
+    email: adminEmail,
   });
 
   if (profileErr) return { error: profileErr.message };
 
   revalidatePath("/admin/superadmin");
   return { success: true, municipality: newMunicipality };
+}
+
+/**
+ * Aggiorna i dati di un Comune esistente (solo super admin).
+ */
+export async function updateMunicipality(formData: FormData) {
+  const municipalityId = formData.get("municipalityId") as string;
+  const callerUserId = formData.get("callerUserId") as string;
+
+  if (!callerUserId || !municipalityId) return { error: "Dati mancanti o utente non autenticato" };
+
+  const { data: callerProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("role, municipality_id")
+    .eq("id", callerUserId)
+    .single();
+
+  if (callerProfile?.role !== "referent" || callerProfile?.municipality_id)
+    return { error: "Non autorizzato: solo il super admin può modificare i comuni" };
+
+  const { error } = await supabaseAdmin
+    .from("municipalities")
+    .update({
+      name: formData.get("municipalityName") as string,
+      province: formData.get("province") as string,
+      notes: formData.get("notes") as string,
+      ref1_name: formData.get("ref1Name") as string,
+      ref1_role: formData.get("ref1Role") as string,
+      ref1_phone: formData.get("ref1Phone") as string,
+      ref1_email: formData.get("ref1Email") as string,
+      ref2_name: formData.get("ref2Name") as string,
+      ref2_role: formData.get("ref2Role") as string,
+      ref2_phone: formData.get("ref2Phone") as string,
+      ref2_email: formData.get("ref2Email") as string,
+    })
+    .eq("id", municipalityId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/superadmin");
+  return { success: true };
 }
 
 /**
