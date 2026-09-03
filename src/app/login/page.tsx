@@ -68,31 +68,31 @@ export default function LoginPage() {
           // Fallback per email sviluppatore
           if (data.user.email === DEV_EMAIL) {
             console.warn("Fallback login: redirect dev a /admin/superadmin");
-            router.push("/admin/superadmin");
+            router.replace("/admin/superadmin");
             return;
           }
           // Default: manda alla mappa
-          router.push("/");
+          router.replace("/");
           return;
         }
           
         if (profile?.role === "operator" && !profile?.terms_accepted) {
-          router.push("/accettazione-termini");
+          router.replace("/accettazione-termini");
         } else if (profile?.role === "operator") {
-          router.push("/");
+          router.replace("/");
         } else if (profile?.role === "superadmin") {
-          router.push("/admin/superadmin");
+          router.replace("/admin/superadmin");
         } else {
-          router.push("/admin");
+          router.replace("/admin");
         }
       } catch (err) {
         console.error("Errore recupero profilo (eccezione):", err);
         if (data.user.email === DEV_EMAIL) {
           console.warn("Fallback login (catch): redirect dev a /admin/superadmin");
-          router.push("/admin/superadmin");
+          router.replace("/admin/superadmin");
           return;
         }
-        router.push("/");
+        router.replace("/");
       }
     } else {
       setLoading(false);

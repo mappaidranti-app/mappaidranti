@@ -286,22 +286,59 @@ export default function HydrantMap() {
     loadHydrants();
   }, []);
 
-  // Intercetta il tasto Indietro per chiudere le modal invece di uscire
+  const isAnyModalOpen = !!(selectedHydrant || isDrawerOpen || isClosestListOpen || draftPosition);
+  const wasModalOpen = useRef(false);
+  const isClosingByPopState = useRef(false);
+  
+  const closeAllModals = useCallback(() => {
+    setSelectedHydrant(null);
+    setIsDrawerOpen(false);
+    setIsClosestListOpen(false);
+    setDraftPosition(null);
+  }, []);
+
+  // Gestione Tasto ESC
   useEffect(() => {
-    const handlePopState = () => {
-      if (selectedHydrant || isDrawerOpen || isClosestListOpen || draftPosition) {
-        // Se c'è una modal aperta, impediamo di andare indietro ripristinando lo stato
-        window.history.pushState(null, "", window.location.href);
-        setSelectedHydrant(null);
-        setIsDrawerOpen(false);
-        setIsClosestListOpen(false);
-        setDraftPosition(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isAnyModalOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeAllModals();
+        // Popping the dummy state added when modal opened
+        window.history.back();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAnyModalOpen, closeAllModals]);
+
+  // Gestione Tasto Indietro del Browser (Storia)
+  useEffect(() => {
+    if (isAnyModalOpen && !wasModalOpen.current) {
+      // Quando apriamo una modal, aggiungiamo uno stato fittizio
+      window.history.pushState({ modalOpen: true }, "");
+      wasModalOpen.current = true;
+    } else if (!isAnyModalOpen && wasModalOpen.current) {
+      // Se si chiude la modal (es. click sulla X), andiamo indietro nella history per rimuovere il dummy state
+      // SOLO SE non stiamo già chiudendo a causa di un popstate!
+      if (!isClosingByPopState.current) {
+        window.history.back();
+      }
+      wasModalOpen.current = false;
+      isClosingByPopState.current = false; // reset
+    }
+    
+    const handlePopState = (e: PopStateEvent) => {
+      if (wasModalOpen.current) {
+        // L'utente ha premuto Indietro sulla modale
+        isClosingByPopState.current = true;
+        closeAllModals();
       }
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [selectedHydrant, isDrawerOpen, isClosestListOpen, draftPosition]);
+  }, [isAnyModalOpen, closeAllModals]);
 
   function locateUser() {
     if (!navigator.geolocation) {

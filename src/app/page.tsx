@@ -24,13 +24,13 @@ export default function Home() {
     async function checkAuth() {
       if (!supabase) {
         setIsAuthenticated(false);
-        router.push("/login");
+        router.replace("/login");
         return;
       }
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        router.push("/login");
+        router.replace("/login");
       } else {
         setIsAuthenticated(true);
       }
@@ -41,7 +41,7 @@ export default function Home() {
     const { data: authListener } = supabase?.auth.onAuthStateChange(
       (event, session) => {
         if (!session) {
-          router.push("/login");
+          router.replace("/login");
         } else {
           setIsAuthenticated(true);
         }
