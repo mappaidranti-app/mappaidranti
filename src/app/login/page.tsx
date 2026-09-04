@@ -22,30 +22,35 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return;
-
     setLoading(true);
     setErrorMsg("");
 
-    let loginData;
-    
     if (activeTab === "operatore") {
-      // In this setup, we assume the phone is mapped to an email (e.g. phone@idrantya.local)
-      // or we are using Supabase auth with phone/password.
-      // For demonstration, we'll use email/password but format phone as email if needed.
-      // If phone provider is enabled: supabase.auth.signInWithPassword({ phone, password: pin })
-      loginData = {
-        phone: phone,
-        password: pin,
-      };
-    } else {
-      loginData = {
-        email: email,
-        password: password,
-      };
+      try {
+        const { loginOperator } = await import("@/app/admin/actions");
+        const res = await loginOperator(phone, pin);
+        
+        if (res.error) {
+          setErrorMsg(res.error);
+          setLoading(false);
+          return;
+        }
+
+        if (res.success && res.operator) {
+          // Salva in localStorage per la sessione della mappa
+          localStorage.setItem("operatorData", JSON.stringify(res.operator));
+          router.replace("/");
+        }
+      } catch (err) {
+        console.error(err);
+        setErrorMsg("Errore di connessione");
+      }
+      setLoading(false);
+      return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword(loginData);
+    if (!supabase) return;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setErrorMsg(error.message);
@@ -67,11 +72,9 @@ export default function LoginPage() {
           console.error("Errore recupero profilo:", profileError);
           // Fallback per email sviluppatore
           if (data.user.email === DEV_EMAIL) {
-            console.warn("Fallback login: redirect dev a /admin/superadmin");
             router.replace("/admin/superadmin");
             return;
           }
-          // Default: manda alla mappa
           router.replace("/");
           return;
         }
@@ -88,7 +91,6 @@ export default function LoginPage() {
       } catch (err) {
         console.error("Errore recupero profilo (eccezione):", err);
         if (data.user.email === DEV_EMAIL) {
-          console.warn("Fallback login (catch): redirect dev a /admin/superadmin");
           router.replace("/admin/superadmin");
           return;
         }

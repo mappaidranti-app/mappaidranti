@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { createMunicipality, getDashboardData, updateMunicipality } from "@/app/admin/actions";
+import OperatorsManager from "@/components/operators-manager";
 
 type Municipality = {
   id: string;
@@ -51,6 +52,7 @@ export default function SuperAdminPage() {
 
   useEffect(() => {
     async function loadData() {
+      if (!supabase) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
@@ -331,6 +333,8 @@ export default function SuperAdminPage() {
           </div>
         )}
       </div>
+
+      {referentId && <OperatorsManager municipalities={municipalities} referentId={referentId} />}
     </div>
   );
 }

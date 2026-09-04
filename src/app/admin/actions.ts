@@ -2,6 +2,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
+
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://dummy.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key-for-build";
@@ -218,16 +220,19 @@ export async function updateMunicipality(formData: FormData) {
 /**
  * Crea un nuovo operatore per il comune del referente corrente.
  */
+/**
+ * Crea un nuovo operatore di campo nella tabella operators.
+ */
 export async function createOperator(formData: FormData) {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const fullName = formData.get("fullName") as string;
+  const municipalityId = formData.get("municipality_id") as string;
+  const name = formData.get("name") as string;
+  const phone = formData.get("phone") as string;
+  const pin = formData.get("pin") as string;
   const referentId = formData.get("referentId") as string;
-  const formMunicipalityId = formData.get("municipalityId") as string;
 
   if (!referentId) return { error: "Utente non autenticato" };
 
-  // Ottieni profilo del chiamante
+  // Verifica autorizzazioni
   const { data: referentProfile, error: referentErr } = await supabaseAdmin
     .from("profiles")
     .select("municipality_id")
@@ -237,37 +242,64 @@ export async function createOperator(formData: FormData) {
   if (referentErr) return { error: "Impossibile determinare profilo del chiamante" };
 
   const isSuperAdmin = !referentProfile?.municipality_id;
-  const targetMunicipalityId = isSuperAdmin ? formMunicipalityId : referentProfile.municipality_id;
+  const targetMunicipalityId = isSuperAdmin ? municipalityId : referentProfile.municipality_id;
 
   if (!targetMunicipalityId) return { error: "Comune non valido o mancante" };
 
-  // Crea l'utente Supabase
-  const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    phone_confirm: false,
-  });
+  // Hash del PIN
+  const salt = await bcrypt.genSalt(10);
+  const pinHash = await bcrypt.hash(pin, salt);
 
-  if (userErr) return { error: userErr.message };
-
-  // Inserisci il profilo operativo
-  const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
-    id: newUser.user.id,
-    role: "operator",
+  const { data: newOp, error } = await supabaseAdmin.from("operators").insert({
     municipality_id: targetMunicipalityId,
-    full_name: fullName,
-    email,
-  });
+    name,
+    phone,
+    pin_hash: pinHash,
+    is_active: true
+  }).select().single();
 
-  if (profileErr) return { error: profileErr.message };
+  if (error) return { error: error.message };
 
+  revalidatePath("/admin/superadmin");
+  return { success: true, operator: newOp };
+}
+
+/**
+ * Recupera la lista degli operatori associati a uno specifico Comune.
+ */
+export async function getOperatorsByMunicipality(municipalityId: string) {
+  if (!municipalityId) return { error: "ID Comune mancante" };
+  
+  const { data, error } = await supabaseAdmin
+    .from("operators")
+    .select("*")
+    .eq("municipality_id", municipalityId)
+    .order("created_at", { ascending: false });
+    
+  if (error) return { error: error.message };
+  
+  return { operators: data };
+}
+
+/**
+ * Aggiorna lo stato is_active dell'operatore.
+ */
+export async function toggleOperatorStatus(operatorId: string, isActive: boolean) {
+  if (!operatorId) return { error: "ID operatore mancante" };
+  
+  const { error } = await supabaseAdmin
+    .from("operators")
+    .update({ is_active: isActive })
+    .eq("id", operatorId);
+    
+  if (error) return { error: error.message };
+  
   revalidatePath("/admin/superadmin");
   return { success: true };
 }
 
 /**
- * Elimina un operatore. Il Super Admin può eliminare tutti, il referente solo i propri.
+ * Elimina un operatore.
  */
 export async function deleteOperator(operatorId: string, referentId: string) {
   if (!referentId) return { error: "Utente non autenticato" };
@@ -281,24 +313,34 @@ export async function deleteOperator(operatorId: string, referentId: string) {
 
   const isSuperAdmin = !referentProfile?.municipality_id;
 
-  const { data: targetProfile, error: targetErr } = await supabaseAdmin
-    .from("profiles")
-    .select("municipality_id, role")
+  const { data: targetOperator, error: targetErr } = await supabaseAdmin
+    .from("operators")
+    .select("municipality_id")
     .eq("id", operatorId)
     .single();
+    
   if (targetErr) return { error: "Operatore non trovato" };
 
-  if (targetProfile.role !== "operator" || (!isSuperAdmin && targetProfile.municipality_id !== referentProfile.municipality_id)) {
+  if (!isSuperAdmin && targetOperator.municipality_id !== referentProfile.municipality_id) {
     return { error: "Operazione non autorizzata" };
   }
 
-  // Prima elimina il profilo, poi l'utente Supabase
-  const { error: delProfile } = await supabaseAdmin.from("profiles").delete().eq("id", operatorId);
-  if (delProfile) return { error: delProfile.message };
-
-  const { error: delUser } = await supabaseAdmin.auth.admin.deleteUser(operatorId);
-  if (delUser) return { error: delUser.message };
+  const { error: delOp } = await supabaseAdmin.from("operators").delete().eq("id", operatorId);
+  if (delOp) return { error: delOp.message };
 
   revalidatePath("/admin/superadmin");
   return { success: true };
+}
+
+/**
+ * Login operatore di campo.
+ */
+export async function loginOperator(phone: string, pin: string) {
+  if (!phone || !pin) return { error: 'Dati mancanti' };
+  const { data: operator } = await supabaseAdmin.from('operators').select('*').eq('phone', phone).single();
+  if (!operator) return { error: 'Credenziali non valide' };
+  if (!operator.is_active) return { error: 'Utenza disabilitata' };
+  const isValid = await bcrypt.compare(pin, operator.pin_hash);
+  if (!isValid) return { error: 'Credenziali non valide' };
+  return { success: true, operator: { id: operator.id, municipality_id: operator.municipality_id, name: operator.name } };
 }

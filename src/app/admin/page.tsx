@@ -14,7 +14,10 @@ export default function AdminEnteDashboard() {
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
 
   const fetchHydrants = useCallback(async (munId: string | null) => {
-    setLoading(true);
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     let query = supabase.from("hydrants").select("*").order("created_at", { ascending: false });
     
     // If Admin Ente, filter by their municipality
@@ -31,6 +34,7 @@ export default function AdminEnteDashboard() {
 
   useEffect(() => {
     async function loadUser() {
+      if (!supabase) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase

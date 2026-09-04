@@ -186,6 +186,8 @@ export default function HydrantMap() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [municipalitiesFilterList, setMunicipalitiesFilterList] = useState<{id: string, name: string}[]>([]);
+  const [selectedMunicipalityFilter, setSelectedMunicipalityFilter] = useState<string>("all");
 
   const stats = useMemo(
     () => ({
@@ -200,15 +202,16 @@ export default function HydrantMap() {
   const filteredHydrants = useMemo(() => {
     return hydrants.filter((h) => {
       const matchesStatus = statusFilter === "" || h.status === statusFilter;
+      const matchesMun = selectedMunicipalityFilter === "all" || h.municipality_id === selectedMunicipalityFilter;
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         q === "" ||
         (h.code && h.code.toLowerCase().includes(q)) ||
         (h.street && h.street.toLowerCase().includes(q)) ||
         (h.street_number && h.street_number.toLowerCase().includes(q));
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesMun && matchesSearch;
     });
-  }, [hydrants, searchQuery, statusFilter]);
+  }, [hydrants, searchQuery, statusFilter, selectedMunicipalityFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 2000);
@@ -273,25 +276,50 @@ export default function HydrantMap() {
         return;
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData?.session?.user?.id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("municipality_id, role")
-          .eq("id", sessionData.session.user.id)
-          .single();
-        if (profile?.municipality_id) {
-          setMunicipalityId(profile.municipality_id);
+      let loadedMunicipalityId = null;
+
+      try {
+        const opStr = window.localStorage.getItem("operatorData");
+        if (opStr) {
+          const op = JSON.parse(opStr);
+          if (op.municipality_id) {
+            loadedMunicipalityId = op.municipality_id;
+            setMunicipalityId(loadedMunicipalityId);
+            setIsAdmin(false);
+          }
         }
-        if (profile?.role === "referent") {
-          setIsAdmin(true);
+      } catch(e) {}
+
+      if (!loadedMunicipalityId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.user?.id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("municipality_id, role")
+            .eq("id", sessionData.session.user.id)
+            .single();
+          if (profile?.municipality_id) {
+            loadedMunicipalityId = profile.municipality_id;
+            setMunicipalityId(loadedMunicipalityId);
+          }
+          if (profile?.role === "referent" || profile?.role === "superadmin") {
+            setIsAdmin(true);
+          }
         }
       }
 
-      const { data, error } = await supabase
-        .from("hydrants")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("hydrants").select("*").order("created_at", { ascending: false });
+      
+      if (loadedMunicipalityId) {
+        query = query.eq("municipality_id", loadedMunicipalityId);
+      }
+
+      const { data, error } = await query;
+
+      if (!loadedMunicipalityId) {
+        const { data: muns } = await supabase.from("municipalities").select("id, name").order("name");
+        if (muns) setMunicipalitiesFilterList(muns);
+      }
 
       if (error) {
         setLoadError(error.message);
@@ -803,6 +831,23 @@ export default function HydrantMap() {
                   </button>
                 )}
               </div>
+
+              {/* Filtro Comune (solo per Admin) */}
+              {municipalitiesFilterList.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={selectedMunicipalityFilter}
+                    onChange={(e) => setSelectedMunicipalityFilter(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 appearance-none"
+                  >
+                    <option value="all">Tutti i Comuni</option>
+                    {municipalitiesFilterList.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                </div>
+              )}
 
               {/* Filtri stato */}
               <div className="flex flex-wrap gap-2">
@@ -1808,7 +1853,9 @@ export default function HydrantMap() {
                     condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
                     uni45Count: 0,
                     uni70Count: 0,
+                    caps_status: selectedHydrant.caps_present === false ? "KO" : "OK",
                     missingCaps: selectedHydrant.caps_quantity ?? 0,
+                    chains_status: selectedHydrant.chains_present === false ? "KO" : "OK",
                     missingChains: selectedHydrant.chains_quantity ?? 0,
                     sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
                     accessibility: selectedHydrant.accessibility || "",
