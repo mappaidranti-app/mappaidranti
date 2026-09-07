@@ -89,7 +89,7 @@ export default function SuperAdminPage() {
   const handleCreateOrUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!referentId) return;
-    console.log("Submit avviato...");
+    console.log("Submit intercettato con successo!");
     setIsSubmitting(true);
     setMessage(null);
     
@@ -188,7 +188,7 @@ export default function SuperAdminPage() {
               {message.text}
             </div>
           )}
-          <form ref={formRef} onSubmit={handleCreateOrUpdate} className="space-y-6">
+          <form ref={formRef} onSubmit={handleCreateOrUpdate} noValidate className="space-y-6">
             {/* Dati Comune */}
             <div>
               <h3 className="text-md font-bold text-slate-700 mb-3 border-b pb-2">1. Dati Comune</h3>
