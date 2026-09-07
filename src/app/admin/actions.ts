@@ -93,128 +93,156 @@ export async function getDashboardData(userId: string) {
  * Crea un nuovo Comune e il suo Referente (solo super admin).
  */
 export async function createMunicipality(formData: FormData) {
-  const municipalityName = formData.get("municipalityName") as string;
-  const province = formData.get("province") as string;
-  const notes = formData.get("notes") as string;
-  
-  const ref1Name = formData.get("ref1Name") as string;
-  const ref1Role = formData.get("ref1Role") as string;
-  const ref1Phone = formData.get("ref1Phone") as string;
-  const ref1Email = formData.get("ref1Email") as string;
-  
-  const ref2Name = formData.get("ref2Name") as string;
-  const ref2Role = formData.get("ref2Role") as string;
-  const ref2Phone = formData.get("ref2Phone") as string;
-  const ref2Email = formData.get("ref2Email") as string;
+  try {
+    const municipalityName = formData.get("municipalityName") as string;
+    const province = (formData.get("province") as string) || null;
+    const notes = (formData.get("notes") as string) || null;
+    
+    const ref1Name = (formData.get("ref1Name") as string) || null;
+    const ref1Role = (formData.get("ref1Role") as string) || null;
+    const ref1Phone = (formData.get("ref1Phone") as string) || null;
+    const ref1Email = (formData.get("ref1Email") as string) || null;
+    
+    const ref2Name = (formData.get("ref2Name") as string) || null;
+    const ref2Role = (formData.get("ref2Role") as string) || null;
+    const ref2Phone = (formData.get("ref2Phone") as string) || null;
+    const ref2Email = (formData.get("ref2Email") as string) || null;
 
-  const adminName = formData.get("adminName") as string;
-  const adminEmail = formData.get("adminEmail") as string;
-  const adminPassword = formData.get("adminPassword") as string;
-  
-  const callerUserId = formData.get("callerUserId") as string;
+    const adminName = formData.get("adminName") as string;
+    const adminEmail = formData.get("adminEmail") as string;
+    const adminPassword = formData.get("adminPassword") as string;
+    
+    const callerUserId = formData.get("callerUserId") as string;
 
-  if (!callerUserId) return { error: "Utente non autenticato" };
+    if (!callerUserId) return { success: false, error: "Utente non autenticato" };
 
-  // Verifica che sia super admin
-  const { data: callerProfile } = await supabaseAdmin
-    .from("profiles")
-    .select("role, municipality_id")
-    .eq("id", callerUserId)
-    .single();
+    // Verifica che sia super admin
+    const { data: callerProfile, error: callerErr } = await supabaseAdmin
+      .from("profiles")
+      .select("role, municipality_id")
+      .eq("id", callerUserId)
+      .single();
 
-  if (callerProfile?.role !== "referent" || callerProfile?.municipality_id)
-    return { error: "Non autorizzato: solo il super admin può creare comuni" };
+    if (callerErr) {
+      console.error("Errore recupero profilo chiamante:", callerErr);
+      return { success: false, error: "Impossibile verificare i permessi dell'utente" };
+    }
 
-  // Crea il record del comune
-  const { data: newMunicipality, error: munErr } = await supabaseAdmin
-    .from("municipalities")
-    .insert({
-      name: municipalityName,
-      contact_name: adminName,
-      province,
-      notes,
-      ref1_name: ref1Name,
-      ref1_role: ref1Role,
-      ref1_phone: ref1Phone,
-      ref1_email: ref1Email,
-      ref2_name: ref2Name,
-      ref2_role: ref2Role,
-      ref2_phone: ref2Phone,
-      ref2_email: ref2Email
-    })
-    .select()
-    .single();
+    if (callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
+      return { success: false, error: "Non autorizzato: solo il super admin può creare comuni" };
+    }
 
-  if (munErr) return { error: munErr.message };
+    // Crea il record del comune
+    const { data: newMunicipality, error: munErr } = await supabaseAdmin
+      .from("municipalities")
+      .insert({
+        name: municipalityName,
+        contact_name: adminName,
+        province,
+        notes,
+        ref1_name: ref1Name,
+        ref1_role: ref1Role,
+        ref1_phone: ref1Phone,
+        ref1_email: ref1Email,
+        ref2_name: ref2Name,
+        ref2_role: ref2Role,
+        ref2_phone: ref2Phone,
+        ref2_email: ref2Email
+      })
+      .select()
+      .single();
 
-  // Crea l'utente Supabase per il referente
-  const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
-    email: adminEmail,
-    password: adminPassword,
-    email_confirm: true,
-    phone_confirm: false,
-  });
+    if (munErr) {
+      console.error("Errore creazione municipality in DB:", munErr);
+      return { success: false, error: munErr.message };
+    }
 
-  if (userErr) {
-    // Rollback: elimina il comune appena creato
-    await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id);
-    return { error: userErr.message };
+    // Crea l'utente Supabase per il referente
+    const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+      phone_confirm: false,
+    });
+
+    if (userErr) {
+      console.error("Errore creazione utente Auth:", userErr);
+      // Rollback: elimina il comune appena creato
+      await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id);
+      return { success: false, error: userErr.message };
+    }
+
+    // Crea il profilo del referente (Admin Ente)
+    const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
+      id: newUser.user.id,
+      role: "referent",
+      municipality_id: newMunicipality.id,
+      full_name: adminName,
+      email: adminEmail,
+    });
+
+    if (profileErr) {
+      console.error("Errore creazione profile:", profileErr);
+      // Rollback opzionale (utente auth rimane, ma profile no, potrebbe creare disallineamenti)
+      return { success: false, error: profileErr.message };
+    }
+
+    revalidatePath("/admin/superadmin");
+    return { success: true, municipality: newMunicipality };
+  } catch (err: any) {
+    console.error("Errore catchato in createMunicipality:", err);
+    return { success: false, error: err.message || "Errore imprevisto" };
   }
-
-  // Crea il profilo del referente (Admin Ente)
-  const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
-    id: newUser.user.id,
-    role: "referent",
-    municipality_id: newMunicipality.id,
-    full_name: adminName,
-    email: adminEmail,
-  });
-
-  if (profileErr) return { error: profileErr.message };
-
-  revalidatePath("/admin/superadmin");
-  return { success: true, municipality: newMunicipality };
 }
 
 /**
  * Aggiorna i dati di un Comune esistente (solo super admin).
  */
 export async function updateMunicipality(formData: FormData) {
-  const municipalityId = formData.get("municipalityId") as string;
-  const callerUserId = formData.get("callerUserId") as string;
+  try {
+    const municipalityId = formData.get("municipalityId") as string;
+    const callerUserId = formData.get("callerUserId") as string;
 
-  if (!callerUserId || !municipalityId) return { error: "Dati mancanti o utente non autenticato" };
+    if (!callerUserId || !municipalityId) return { success: false, error: "Dati mancanti o utente non autenticato" };
 
-  const { data: callerProfile } = await supabaseAdmin
-    .from("profiles")
-    .select("role, municipality_id")
-    .eq("id", callerUserId)
-    .single();
+    const { data: callerProfile, error: callerErr } = await supabaseAdmin
+      .from("profiles")
+      .select("role, municipality_id")
+      .eq("id", callerUserId)
+      .single();
 
-  if (callerProfile?.role !== "referent" || callerProfile?.municipality_id)
-    return { error: "Non autorizzato: solo il super admin può modificare i comuni" };
+    if (callerErr || callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
+      return { success: false, error: "Non autorizzato: solo il super admin può modificare i comuni" };
+    }
 
-  const { error } = await supabaseAdmin
-    .from("municipalities")
-    .update({
-      name: formData.get("municipalityName") as string,
-      province: formData.get("province") as string,
-      notes: formData.get("notes") as string,
-      ref1_name: formData.get("ref1Name") as string,
-      ref1_role: formData.get("ref1Role") as string,
-      ref1_phone: formData.get("ref1Phone") as string,
-      ref1_email: formData.get("ref1Email") as string,
-      ref2_name: formData.get("ref2Name") as string,
-      ref2_role: formData.get("ref2Role") as string,
-      ref2_phone: formData.get("ref2Phone") as string,
-      ref2_email: formData.get("ref2Email") as string,
-    })
-    .eq("id", municipalityId);
+    const { error } = await supabaseAdmin
+      .from("municipalities")
+      .update({
+        name: formData.get("municipalityName") as string,
+        province: (formData.get("province") as string) || null,
+        notes: (formData.get("notes") as string) || null,
+        ref1_name: (formData.get("ref1Name") as string) || null,
+        ref1_role: (formData.get("ref1Role") as string) || null,
+        ref1_phone: (formData.get("ref1Phone") as string) || null,
+        ref1_email: (formData.get("ref1Email") as string) || null,
+        ref2_name: (formData.get("ref2Name") as string) || null,
+        ref2_role: (formData.get("ref2Role") as string) || null,
+        ref2_phone: (formData.get("ref2Phone") as string) || null,
+        ref2_email: (formData.get("ref2Email") as string) || null,
+      })
+      .eq("id", municipalityId);
 
-  if (error) return { error: error.message };
+    if (error) {
+      console.error("Errore in updateMunicipality:", error);
+      return { success: false, error: error.message };
+    }
 
-  revalidatePath("/admin/superadmin");
-  return { success: true };
+    revalidatePath("/admin/superadmin");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Errore catchato in updateMunicipality:", err);
+    return { success: false, error: err.message || "Errore imprevisto" };
+  }
 }
 
 /**
