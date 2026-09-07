@@ -92,7 +92,18 @@ export async function getDashboardData(userId: string) {
 /**
  * Crea un nuovo Comune e il suo Referente (solo super admin).
  */
+const withTimeout = <T>(promise: Promise<T>, ms: number = 8000, errorMsg: string = "Timeout request"): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
+  ]);
+};
+
 export async function createMunicipality(formData: FormData) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
+  }
+
   try {
     const municipalityName = formData.get("municipalityName") as string;
     const province = (formData.get("province") as string) || null;
@@ -117,11 +128,15 @@ export async function createMunicipality(formData: FormData) {
     if (!callerUserId) return { success: false, error: "Utente non autenticato" };
 
     // Verifica che sia super admin
-    const { data: callerProfile, error: callerErr } = await supabaseAdmin
-      .from("profiles")
-      .select("role, municipality_id")
-      .eq("id", callerUserId)
-      .single();
+    const { data: callerProfile, error: callerErr } = await withTimeout(
+      supabaseAdmin
+        .from("profiles")
+        .select("role, municipality_id")
+        .eq("id", callerUserId)
+        .single(),
+      5000,
+      "Timeout recupero profilo chiamante"
+    );
 
     if (callerErr) {
       console.error("Errore recupero profilo chiamante:", callerErr);
@@ -133,24 +148,28 @@ export async function createMunicipality(formData: FormData) {
     }
 
     // Crea il record del comune
-    const { data: newMunicipality, error: munErr } = await supabaseAdmin
-      .from("municipalities")
-      .insert({
-        name: municipalityName,
-        contact_name: adminName,
-        province,
-        notes,
-        ref1_name: ref1Name,
-        ref1_role: ref1Role,
-        ref1_phone: ref1Phone,
-        ref1_email: ref1Email,
-        ref2_name: ref2Name,
-        ref2_role: ref2Role,
-        ref2_phone: ref2Phone,
-        ref2_email: ref2Email
-      })
-      .select()
-      .single();
+    const { data: newMunicipality, error: munErr } = await withTimeout(
+      supabaseAdmin
+        .from("municipalities")
+        .insert({
+          name: municipalityName,
+          contact_name: adminName,
+          province,
+          notes,
+          ref1_name: ref1Name,
+          ref1_role: ref1Role,
+          ref1_phone: ref1Phone,
+          ref1_email: ref1Email,
+          ref2_name: ref2Name,
+          ref2_role: ref2Role,
+          ref2_phone: ref2Phone,
+          ref2_email: ref2Email
+        })
+        .select()
+        .single(),
+      5000,
+      "Timeout creazione municipality in DB"
+    );
 
     if (munErr) {
       console.error("Errore creazione municipality in DB:", munErr);
@@ -158,28 +177,40 @@ export async function createMunicipality(formData: FormData) {
     }
 
     // Crea l'utente Supabase per il referente
-    const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: true,
-      phone_confirm: false,
-    });
+    const { data: newUser, error: userErr } = await withTimeout(
+      supabaseAdmin.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: true,
+        phone_confirm: false,
+      }),
+      8000,
+      "Timeout creazione utente Auth"
+    );
 
     if (userErr) {
       console.error("Errore creazione utente Auth:", userErr);
       // Rollback: elimina il comune appena creato
-      await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id);
+      await withTimeout(
+        supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id),
+        5000,
+        "Timeout rollback municipality"
+      );
       return { success: false, error: userErr.message };
     }
 
     // Crea il profilo del referente (Admin Ente)
-    const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
-      id: newUser.user.id,
-      role: "referent",
-      municipality_id: newMunicipality.id,
-      full_name: adminName,
-      email: adminEmail,
-    });
+    const { error: profileErr } = await withTimeout(
+      supabaseAdmin.from("profiles").insert({
+        id: newUser.user.id,
+        role: "referent",
+        municipality_id: newMunicipality.id,
+        full_name: adminName,
+        email: adminEmail,
+      }),
+      5000,
+      "Timeout creazione profilo"
+    );
 
     if (profileErr) {
       console.error("Errore creazione profile:", profileErr);
@@ -187,11 +218,13 @@ export async function createMunicipality(formData: FormData) {
       return { success: false, error: profileErr.message };
     }
 
-    revalidatePath("/admin/superadmin");
+    // RIMOSSO TEMPORANEAMENTE PER ISOLARE FLUSSO DATI E PREVENIRE HANG
+    // revalidatePath("/admin/superadmin");
+    
     return { success: true, municipality: newMunicipality };
   } catch (err: any) {
     console.error("Errore catchato in createMunicipality:", err);
-    return { success: false, error: err.message || "Errore imprevisto" };
+    return { success: false, error: String(err) };
   }
 }
 

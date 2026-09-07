@@ -86,53 +86,61 @@ export default function SuperAdminPage() {
   const handleCreateOrUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!referentId) return;
+    console.log("Submit avviato...");
     setIsSubmitting(true);
     setMessage(null);
     
-    const formData = new FormData();
-    formData.append("municipalityName", munName);
-    formData.append("province", province);
-    formData.append("notes", notes);
-    formData.append("ref1Name", ref1Name);
-    formData.append("ref1Role", ref1Role);
-    formData.append("ref1Phone", ref1Phone);
-    formData.append("ref1Email", ref1Email);
-    formData.append("ref2Name", ref2Name);
-    formData.append("ref2Role", ref2Role);
-    formData.append("ref2Phone", ref2Phone);
-    formData.append("ref2Email", ref2Email);
-    formData.append("callerUserId", referentId);
-    
-    if (editingMun) {
-        formData.append("municipalityId", editingMun.id);
-        const result = await updateMunicipality(formData);
-        
-        if (result.error) {
-          setMessage({ type: "error", text: result.error });
-        } else {
-          setMessage({ type: "success", text: `Comune "${munName}" aggiornato con successo!` });
-          resetForm();
-          const res = await getDashboardData(referentId);
-          if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
-        }
-    } else {
-        formData.append("adminName", adminName);
-        formData.append("adminEmail", adminEmail);
-        formData.append("adminPassword", adminPassword);
-        
-        const result = await createMunicipality(formData);
-        
-        if (result.error) {
-          setMessage({ type: "error", text: result.error });
-        } else {
-          setMessage({ type: "success", text: `Comune "${munName}" creato con successo!` });
-          resetForm();
-          const res = await getDashboardData(referentId);
-          if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
-        }
+    try {
+      const formData = new FormData();
+      formData.append("municipalityName", munName);
+      formData.append("province", province);
+      formData.append("notes", notes);
+      formData.append("ref1Name", ref1Name);
+      formData.append("ref1Role", ref1Role);
+      formData.append("ref1Phone", ref1Phone);
+      formData.append("ref1Email", ref1Email);
+      formData.append("ref2Name", ref2Name);
+      formData.append("ref2Role", ref2Role);
+      formData.append("ref2Phone", ref2Phone);
+      formData.append("ref2Email", ref2Email);
+      formData.append("callerUserId", referentId);
+      
+      if (editingMun) {
+          formData.append("municipalityId", editingMun.id);
+          const result = await updateMunicipality(formData);
+          console.log("Risposta ricevuta:", result);
+          
+          if (result.error) {
+            setMessage({ type: "error", text: result.error });
+          } else {
+            setMessage({ type: "success", text: `Comune "${munName}" aggiornato con successo!` });
+            resetForm();
+            const res = await getDashboardData(referentId);
+            if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
+          }
+      } else {
+          formData.append("adminName", adminName);
+          formData.append("adminEmail", adminEmail);
+          formData.append("adminPassword", adminPassword);
+          
+          const result = await createMunicipality(formData);
+          console.log("Risposta ricevuta:", result);
+          
+          if (result.error) {
+            setMessage({ type: "error", text: result.error });
+          } else {
+            setMessage({ type: "success", text: `Comune "${munName}" creato con successo!` });
+            resetForm();
+            const res = await getDashboardData(referentId);
+            if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
+          }
+      }
+    } catch (err) {
+      console.error("Errore imprevisto nel frontend:", err);
+      setMessage({ type: "error", text: String(err) });
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false);
   };
 
   const resetForm = () => {
