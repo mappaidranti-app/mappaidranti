@@ -139,8 +139,15 @@ export async function createMunicipality(formData: FormData) {
     );
 
     if (callerErr) {
-      console.error("Errore recupero profilo chiamante:", callerErr);
-      return { success: false, error: "Impossibile verificare i permessi dell'utente" };
+      console.error("Dettaglio errore recupero profilo:", JSON.stringify(callerErr, null, 2));
+      
+      // Fallback di sicurezza: verifichiamo almeno se esiste in Auth. Se no, fermiamo tutto.
+      const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(callerUserId);
+      if (authErr || !authUser?.user) {
+        return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
+      }
+      
+      return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
     }
 
     if (callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
@@ -244,7 +251,12 @@ export async function updateMunicipality(formData: FormData) {
       .eq("id", callerUserId)
       .single();
 
-    if (callerErr || callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
+    if (callerErr) {
+      console.error("Dettaglio errore recupero profilo (update):", JSON.stringify(callerErr, null, 2));
+      return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
+    }
+    
+    if (callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
       return { success: false, error: "Non autorizzato: solo il super admin può modificare i comuni" };
     }
 
