@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { createMunicipality, getDashboardData, updateMunicipality } from "@/app/admin/actions";
 import OperatorsManager from "@/components/operators-manager";
@@ -22,6 +23,8 @@ type Municipality = {
 };
 
 export default function SuperAdminPage() {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
   const [referentId, setReferentId] = useState<string | null>(null);
@@ -110,13 +113,15 @@ export default function SuperAdminPage() {
           const result = await updateMunicipality(formData);
           console.log("Risposta ricevuta:", result);
           
-          if (result.error) {
+          if (result?.error) {
             setMessage({ type: "error", text: result.error });
           } else {
             setMessage({ type: "success", text: `Comune "${munName}" aggiornato con successo!` });
+            if (formRef.current) formRef.current.reset();
             resetForm();
             const res = await getDashboardData(referentId);
             if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
+            router.refresh();
           }
       } else {
           formData.append("adminName", adminName);
@@ -126,18 +131,20 @@ export default function SuperAdminPage() {
           const result = await createMunicipality(formData);
           console.log("Risposta ricevuta:", result);
           
-          if (result.error) {
+          if (result?.error) {
             setMessage({ type: "error", text: result.error });
           } else {
             setMessage({ type: "success", text: `Comune "${munName}" creato con successo!` });
+            if (formRef.current) formRef.current.reset();
             resetForm();
             const res = await getDashboardData(referentId);
             if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
+            router.refresh();
           }
       }
     } catch (err) {
       console.error("Errore imprevisto nel frontend:", err);
-      setMessage({ type: "error", text: String(err) });
+      setMessage({ type: "error", text: "Errore imprevisto di rete." });
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +188,7 @@ export default function SuperAdminPage() {
               {message.text}
             </div>
           )}
-          <form onSubmit={handleCreateOrUpdate} className="space-y-6">
+          <form ref={formRef} onSubmit={handleCreateOrUpdate} className="space-y-6">
             {/* Dati Comune */}
             <div>
               <h3 className="text-md font-bold text-slate-700 mb-3 border-b pb-2">1. Dati Comune</h3>
