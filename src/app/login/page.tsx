@@ -64,7 +64,7 @@ export default function LoginPage() {
       try {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("terms_accepted, role")
+          .select("*")
           .eq("id", data.user.id)
           .single();
 
