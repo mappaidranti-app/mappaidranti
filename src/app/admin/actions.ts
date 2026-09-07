@@ -17,13 +17,23 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 export async function getUserRole(userId: string) {
   if (!userId) return { role: null };
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
+  try {
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
 
-  return { role: profile?.role || null };
+    if (error) {
+      console.error("Errore getUserRole:", error.message);
+      return { role: null };
+    }
+
+    return { role: profile?.role || null };
+  } catch (err) {
+    console.error("Eccezione getUserRole:", err);
+    return { role: null };
+  }
 }
 
 /**
@@ -50,13 +60,19 @@ export async function upgradeToSuperAdmin(userId: string) {
 export async function getDashboardData(userId: string) {
   if (!userId) return { error: "Non autenticato" };
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role, municipality_id")
-    .eq("id", userId)
-    .single();
+  try {
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("role, municipality_id")
+      .eq("id", userId)
+      .maybeSingle();
 
-  if (profile?.role !== "referent") return { error: "Non autorizzato" };
+    if (profileErr) {
+      console.error("Errore recupero profilo (gestito):", profileErr.message);
+      return { error: "Errore durante la lettura del profilo" };
+    }
+
+    if (!profile || profile.role !== "referent") return { error: "Non autorizzato o profilo mancante" };
 
   const isSuperAdmin = !profile?.municipality_id;
   const municipalityId = profile?.municipality_id;
@@ -87,6 +103,10 @@ export async function getDashboardData(userId: string) {
   }
 
   return { isSuperAdmin, municipalities: municipalities || [], municipality, operators, referentId: userId };
+  } catch (err: any) {
+    console.error("Eccezione in getDashboardData:", err);
+    return { error: "Errore imprevisto nel caricamento della dashboard" };
+  }
 }
 
 /**
