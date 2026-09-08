@@ -659,6 +659,28 @@ export default function HydrantMap() {
     return streetPart || comunePart || "Indirizzo non specificato";
   }
 
+  function checkVehicleAccessibility(accessibility?: string | null): { isAccessible: boolean; text: string; details?: string } {
+    if (!accessibility) {
+      return { isAccessible: false, text: "Accessibile ai mezzi: NO", details: "Non specificato" };
+    }
+
+    const clean = accessibility.trim().toLowerCase();
+
+    if (
+      clean.includes("tutti i mezzi") ||
+      clean.includes("camion") ||
+      clean === "sì" ||
+      clean === "si" ||
+      clean === "true" ||
+      clean.startsWith("accessibile a") ||
+      clean === "accessibile"
+    ) {
+      return { isAccessible: true, text: "Accessibile ai mezzi: SÌ", details: accessibility };
+    }
+
+    return { isAccessible: false, text: "Accessibile ai mezzi: NO", details: accessibility };
+  }
+
   function findClosestHydrants(customFilter: "working" | "all" | "broken" = closestFilter) {
     if (!userPosition) {
       setMessage("Posizione non disponibile. Premi il tasto geolocalizzazione.");
@@ -1728,7 +1750,30 @@ export default function HydrantMap() {
                       <p className="text-base font-black text-slate-900 mt-1.5 leading-snug">
                         📍 {formatFullAddress(h)}
                       </p>
-                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1 text-blue-800">
+
+                      {/* Badge Accessibilità Mezzi Vigili del Fuoco */}
+                      {(() => {
+                        const access = checkVehicleAccessibility(h.accessibility);
+                        return (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black tracking-wide border shadow-sm ${
+                              access.isAccessible
+                                ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                                : "bg-rose-100 text-rose-900 border-rose-300"
+                            }`}>
+                              <span className="text-sm">{access.isAccessible ? "🚒" : "🚫"}</span>
+                              <span>{access.text}</span>
+                            </span>
+                            {h.accessibility && h.accessibility !== access.text && (
+                              <span className="text-[11px] font-semibold text-slate-500">
+                                ({h.accessibility})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1 text-blue-800">
                         <LocateFixed size={18} />
                         <span className="text-2xl font-black">{Math.round(h.distance)}</span>
                         <span className="text-sm font-bold uppercase tracking-wider mt-1">metri</span>
@@ -1855,8 +1900,27 @@ export default function HydrantMap() {
                   <span className="text-lg font-black text-slate-800">{selectedHydrant.sign_present ? "✅ Sì" : "❌ No"}</span>
                 </div>
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                  <span className="text-xs font-bold uppercase text-slate-400 block mb-1">🚗 Accessibilità</span>
-                  <span className="text-base font-black text-slate-800">{selectedHydrant.accessibility || "—"}</span>
+                  <span className="text-xs font-bold uppercase text-slate-400 block mb-2">🚗 Accessibilità</span>
+                  {(() => {
+                    const access = checkVehicleAccessibility(selectedHydrant.accessibility);
+                    return (
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-black tracking-wide border shadow-sm ${
+                          access.isAccessible
+                            ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                            : "bg-rose-100 text-rose-900 border-rose-300"
+                        }`}>
+                          <span>{access.isAccessible ? "🚒" : "🚫"}</span>
+                          <span>{access.text}</span>
+                        </span>
+                        {selectedHydrant.accessibility && selectedHydrant.accessibility !== access.text && (
+                          <span className="text-xs font-semibold text-slate-500">
+                            ({selectedHydrant.accessibility})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
                   <span className="text-xs font-bold uppercase text-slate-400 block mb-1">🎨 Da Verniciare</span>
