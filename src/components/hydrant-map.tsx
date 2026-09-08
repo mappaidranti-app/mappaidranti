@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CircleMarker,
   MapContainer,
@@ -168,6 +169,8 @@ export default function HydrantMap() {
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const router = useRouter();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedHydrant, setSelectedHydrant] = useState<Hydrant | null>(null);
   const [isClosestListOpen, setIsClosestListOpen] = useState(false);
@@ -287,6 +290,8 @@ export default function HydrantMap() {
             loadedMunicipalityId = op.municipality_id;
             setMunicipalityId(loadedMunicipalityId);
             setIsAdmin(false);
+            // Gli operatori locali (localStorage) possono modificare gli idranti
+            setCanEdit(true);
           }
         }
       } catch(e) {}
@@ -305,6 +310,11 @@ export default function HydrantMap() {
           }
           if (profile?.role === "referent" || profile?.role === "superadmin") {
             setIsAdmin(true);
+            setCanEdit(true);
+          } else if (profile?.role === "operator") {
+            // Operatori autenticati: possono modificare ma non gestire l'ente
+            setIsAdmin(false);
+            setCanEdit(true);
           }
         }
       }
@@ -1779,7 +1789,7 @@ export default function HydrantMap() {
                         <span className="text-sm font-bold uppercase tracking-wider mt-1">metri</span>
                       </div>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
                       <button
                         onClick={() => {
                           setIsClosestListOpen(false);
@@ -1789,6 +1799,44 @@ export default function HydrantMap() {
                       >
                         Dettagli
                       </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            setIsClosestListOpen(false);
+                            setSelectedHydrant(null);
+                            setDraftPosition({
+                              latitude: h.latitude,
+                              longitude: h.longitude,
+                            });
+                            setIsDrawerOpen(true);
+                            setForm({
+                              code: h.code,
+                              street: h.street || "",
+                              street_number: h.street_number || "",
+                              type: h.type,
+                              connections: h.connections || [],
+                              status: h.status,
+                              condition: (h.condition as HydrantCondition) || "DISCRETO",
+                              uni45Count: 0,
+                              uni70Count: 0,
+                              caps_status: h.caps_present === false ? "KO" : "OK",
+                              missingCaps: h.caps_quantity ?? 0,
+                              chains_status: h.chains_present === false ? "KO" : "OK",
+                              missingChains: h.chains_quantity ?? 0,
+                              sign_present: h.sign_present !== undefined ? h.sign_present : null,
+                              accessibility: h.accessibility || "",
+                              notes: h.notes || "",
+                              has_pit: h.has_pit ?? null,
+                              pit_status: h.pit_status ?? null,
+                              needs_painting: h.needs_painting ?? null,
+                              cappellotto_status: h.cappellotto_status ?? null,
+                            });
+                          }}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-base font-bold text-white transition hover:bg-blue-700 active:scale-95 min-h-[48px]"
+                        >
+                          <Pencil size={16} /> Modifica
+                        </button>
+                      )}
                       <a
                         href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
                         target="_blank"
@@ -2010,7 +2058,7 @@ export default function HydrantMap() {
           </div>
 
           {/* Footer - Modifica */}
-          {isAdmin && (
+          {canEdit && (
             <div className="border-t border-slate-200 bg-white p-4 md:p-6">
               <button
                 onClick={() => {
