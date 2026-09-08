@@ -172,6 +172,7 @@ export default function HydrantMap() {
   const [selectedHydrant, setSelectedHydrant] = useState<Hydrant | null>(null);
   const [isClosestListOpen, setIsClosestListOpen] = useState(false);
   const [closestHydrantsList, setClosestHydrantsList] = useState<(Hydrant & { distance: number })[]>([]);
+  const [closestFilter, setClosestFilter] = useState<"working" | "all" | "broken">("working");
   const [fileRavvicinata, setFileRavvicinata] = useState<File | null>(null);
   const [filePanoramica, setFilePanoramica] = useState<File | null>(null);
   const [filePozzetto, setFilePozzetto] = useState<File | null>(null);
@@ -184,7 +185,7 @@ export default function HydrantMap() {
 
   // Ricerca e filtro stato
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">("Funzionante");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [municipalitiesFilterList, setMunicipalitiesFilterList] = useState<{id: string, name: string}[]>([]);
   const [selectedMunicipalityFilter, setSelectedMunicipalityFilter] = useState<string>("all");
@@ -316,10 +317,8 @@ export default function HydrantMap() {
 
       const { data, error } = await query;
 
-      if (!loadedMunicipalityId) {
-        const { data: muns } = await supabase.from("municipalities").select("id, name").order("name");
-        if (muns) setMunicipalitiesFilterList(muns);
-      }
+      const { data: muns } = await supabase.from("municipalities").select("id, name").order("name");
+      if (muns) setMunicipalitiesFilterList(muns);
 
       if (error) {
         setLoadError(error.message);
@@ -635,7 +634,32 @@ export default function HydrantMap() {
     return R * c;
   }
 
-  function findClosestHydrants() {
+  function formatFullAddress(h: Hydrant): string {
+    const street = h.street?.trim() || "";
+    const streetNumber = h.street_number?.trim() || "";
+    const streetPart = [street, streetNumber].filter(Boolean).join(" ");
+
+    const munName = municipalitiesFilterList.find((m) => m.id === h.municipality_id)?.name || (h as any).municipality_name || "";
+    const hamletPart = h.hamlet?.trim() || "";
+
+    let comunePart = "";
+    if (hamletPart && munName) {
+      if (hamletPart.toLowerCase().includes(munName.toLowerCase())) {
+        comunePart = hamletPart;
+      } else {
+        comunePart = `${hamletPart}, ${munName}`;
+      }
+    } else {
+      comunePart = hamletPart || munName || currentMunicipality || "";
+    }
+
+    if (streetPart && comunePart) {
+      return `${streetPart}, ${comunePart}`;
+    }
+    return streetPart || comunePart || "Indirizzo non specificato";
+  }
+
+  function findClosestHydrants(customFilter: "working" | "all" | "broken" = closestFilter) {
     if (!userPosition) {
       setMessage("Posizione non disponibile. Premi il tasto geolocalizzazione.");
       return;
@@ -646,8 +670,24 @@ export default function HydrantMap() {
       return;
     }
 
+    // Filtra per stato idrante (Default: solo Funzionanti)
+    const filtered = hydrants.filter((h) => {
+      const isWorking =
+        h.status === "Funzionante" ||
+        (h.status as string)?.toLowerCase() === "funzionante" ||
+        (h as any).is_working === true;
+      const isBroken =
+        h.status === "Non funzionante" ||
+        (h.status as string)?.toLowerCase() === "non funzionante" ||
+        (h as any).is_working === false;
+
+      if (customFilter === "working") return isWorking;
+      if (customFilter === "broken") return isBroken;
+      return true; // "all"
+    });
+
     // Calcola le distanze (in metri) usando la formula di Haversine
-    const withDistances = hydrants.map((h) => ({
+    const withDistances = filtered.map((h) => ({
       ...h,
       distance: calculateDistanceHaversine(userPosition.latitude, userPosition.longitude, h.latitude, h.longitude),
     }));
@@ -659,6 +699,11 @@ export default function HydrantMap() {
     setDraftPosition(null);
     setIsDrawerOpen(false);
     setSelectedHydrant(null);
+  }
+
+  function handleToggleClosestFilter(newFilter: "working" | "all" | "broken") {
+    setClosestFilter(newFilter);
+    findClosestHydrants(newFilter);
   }
 
   return (
@@ -1603,44 +1648,114 @@ export default function HydrantMap() {
               </button>
             </div>
 
+            {/* Selettore / Toggle Stato: Default solo Funzionanti */}
+            <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-100/90 px-4 py-2.5 md:px-6">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtro:</span>
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => handleToggleClosestFilter("working")}
+                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                    closestFilter === "working"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  ✅ Funzionanti
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleClosestFilter("broken")}
+                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                    closestFilter === "broken"
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  ❌ Non funzionanti
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleClosestFilter("all")}
+                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                    closestFilter === "all"
+                      ? "bg-slate-800 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  Tutti
+                </button>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
-              {closestHydrantsList.map((h, i) => (
-                <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300">
-                  <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-slate-900">{i + 1}.</span>
-                      <span className="text-xl font-bold text-slate-500">ID {h.code}</span>
-                    </div>
-                    {(h.street || h.street_number) && (
-                      <p className="text-xl font-black text-slate-900 mt-1 leading-tight">📍 {h.street} {h.street_number}</p>
-                    )}
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1 text-blue-800">
-                      <LocateFixed size={18} />
-                      <span className="text-2xl font-black">{Math.round(h.distance)}</span>
-                      <span className="text-sm font-bold uppercase tracking-wider mt-1">metri</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
+              {closestHydrantsList.length === 0 ? (
+                <div className="py-10 text-center bg-white rounded-2xl border-2 border-dashed border-slate-200 p-6">
+                  <p className="text-slate-600 font-bold text-sm">
+                    {closestFilter === "working"
+                      ? "Nessun idrante funzionante trovato nelle vicinanze."
+                      : closestFilter === "broken"
+                      ? "Nessun idrante non funzionante trovato nelle vicinanze."
+                      : "Nessun idrante trovato sulla mappa."}
+                  </p>
+                  {closestFilter !== "all" && (
                     <button
-                      onClick={() => {
-                        setIsClosestListOpen(false);
-                        setSelectedHydrant(h);
-                      }}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-base font-bold text-white transition hover:bg-slate-700 active:scale-95 min-h-[48px]"
+                      type="button"
+                      onClick={() => handleToggleClosestFilter("all")}
+                      className="mt-3 text-xs font-bold text-blue-600 hover:underline inline-block"
                     >
-                      Dettagli
+                      Mostra tutti gli idranti
                     </button>
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-base font-bold text-white transition hover:bg-indigo-700 active:scale-95 min-h-[48px]"
-                    >
-                      🗺️ Naviga
-                    </a>
-                  </div>
+                  )}
                 </div>
-              ))}
+              ) : (
+                closestHydrantsList.map((h, i) => (
+                  <div key={h.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-2xl font-black text-slate-900">{i + 1}.</span>
+                        <span className="text-xl font-bold text-slate-500">ID {h.code}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-black ${
+                          h.status === "Funzionante"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : h.status === "Non funzionante"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {h.status === "Funzionante" ? "✅ Funzionante" : h.status === "Non funzionante" ? "❌ Non funzionante" : "⚠️ Da verificare"}
+                        </span>
+                      </div>
+                      <p className="text-base font-black text-slate-900 mt-1.5 leading-snug">
+                        📍 {formatFullAddress(h)}
+                      </p>
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1 text-blue-800">
+                        <LocateFixed size={18} />
+                        <span className="text-2xl font-black">{Math.round(h.distance)}</span>
+                        <span className="text-sm font-bold uppercase tracking-wider mt-1">metri</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setIsClosestListOpen(false);
+                          setSelectedHydrant(h);
+                        }}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-base font-bold text-white transition hover:bg-slate-700 active:scale-95 min-h-[48px]"
+                      >
+                        Dettagli
+                      </button>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-base font-bold text-white transition hover:bg-indigo-700 active:scale-95 min-h-[48px]"
+                      >
+                        🗺️ Naviga
+                      </a>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </>
@@ -1664,11 +1779,9 @@ export default function HydrantMap() {
               <h2 className="text-2xl font-black text-white leading-tight">
                 {selectedHydrant.code ? `IDRANTE ${selectedHydrant.code}` : "IDRANTE"}
               </h2>
-              {(selectedHydrant.street || selectedHydrant.street_number) && (
-                <p className="text-base font-semibold text-white/90 mt-1">
-                  📍 {selectedHydrant.street} {selectedHydrant.street_number}
-                </p>
-              )}
+              <p className="text-base font-semibold text-white/90 mt-1">
+                📍 {formatFullAddress(selectedHydrant)}
+              </p>
             </div>
             <button
               onClick={() => setSelectedHydrant(null)}
