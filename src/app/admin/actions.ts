@@ -256,6 +256,43 @@ export async function createMunicipality(formData: FormData) {
 }
 
 /**
+ * Crea un nuovo Comune in modo atomico (solo dati Comune, niente Auth).
+ * Usa supabaseAdmin con Service Role Key per bypassare RLS.
+ */
+export async function createMunicipalitySimple(formData: FormData) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  const province = (formData.get("province") as string)?.trim() || null;
+  const istatCode = (formData.get("istatCode") as string)?.trim() || null;
+
+  if (!name) {
+    return { success: false, error: "Il nome del Comune è obbligatorio." };
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("municipalities")
+      .insert({ name, province, istat_code: istatCode })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("createMunicipalitySimple – errore DB:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/superadmin");
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("createMunicipalitySimple – eccezione:", err);
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
  * Aggiorna i dati di un Comune esistente (solo super admin).
  */
 export async function updateMunicipality(formData: FormData) {
