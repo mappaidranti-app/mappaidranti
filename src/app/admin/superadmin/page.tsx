@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -32,10 +32,8 @@ type Feedback = { type: "success" | "error"; text: string } | null;
 // Componente: form minimo per la creazione di un Comune
 // ---------------------------------------------------------------------------
 function CreateMunicipalityForm({
-  referentId,
   onCreated,
 }: {
-  referentId: string;
   onCreated: (m: Municipality) => void;
 }) {
   const router = useRouter();
@@ -301,12 +299,9 @@ export default function SuperAdminPage() {
       </div>
 
       {/* Creazione Comune */}
-      {referentId && (
-        <CreateMunicipalityForm
-          referentId={referentId}
-          onCreated={(m) => setMunicipalities((prev) => [...prev, m])}
-        />
-      )}
+      <CreateMunicipalityForm
+        onCreated={(m) => setMunicipalities((prev) => [...prev, m])}
+      />
 
       {/* Modifica Comune */}
       {showEditForm && editingMun && (
