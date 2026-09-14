@@ -275,7 +275,7 @@ export async function createMunicipalitySimple(formData: FormData) {
   try {
     const { data, error } = await supabaseAdmin
       .from("municipalities")
-      .insert({ name, province, istat_code: istatCode })
+      .insert({ name, province })
       .select()
       .single();
 
