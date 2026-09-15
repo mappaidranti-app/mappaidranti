@@ -293,6 +293,25 @@ export async function createMunicipalitySimple(formData: FormData) {
 }
 
 /**
+ * Crea atomicamente un Comune e il suo Admin Ente in un unico passaggio.
+ * Passaggi: 1) crea utente Auth, 2) crea Comune, 3) inserisce/aggiorna profilo.
+ * In caso di errore in qualsiasi fase, restituisce un messaggio esplicito.
+ */
+export async function createMunicipalityAndAdmin(formData: FormData) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
+  }
+
+  const municipalityName = (formData.get("municipalityName") as string)?.trim();
+  const adminFullName = (formData.get("adminFullName") as string)?.trim();
+  const adminEmail = (formData.get("adminEmail") as string)?.trim();
+  const adminPassword = (formData.get("adminPassword") as string)?.trim();
+
+  if (!municipalityName) return { success: false, error: "Il nome del Comune è obbligatorio." };
+  if (!adminFullName) return { success: false, error: "Il nome del Responsabile Admin è obbligatorio." };
+  if (!adminEmail) return { success: false, error: "L'email istituzionale è obbligatoria." };
+
+/**
  * Aggiorna i dati di un Comune esistente (solo super admin).
  */
 export async function updateMunicipality(formData: FormData) {

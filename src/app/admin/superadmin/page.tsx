@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  createMunicipalitySimple,
+  createMunicipalityAndAdmin,
   getDashboardData,
   updateMunicipality,
 } from "@/app/admin/actions";
@@ -29,7 +29,7 @@ type Municipality = {
 type Feedback = { type: "success" | "error"; text: string } | null;
 
 // ---------------------------------------------------------------------------
-// Componente: form minimo per la creazione di un Comune
+// Componente: form atomico 4 campi – Crea Comune + Admin Ente
 // ---------------------------------------------------------------------------
 function CreateMunicipalityForm({
   onCreated,
@@ -38,23 +38,28 @@ function CreateMunicipalityForm({
 }) {
   const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState("");
-  const [province, setProvince] = useState("");
-  const [istatCode, setIstatCode] = useState("");
+
+  const [municipalityName, setMunicipalityName] = useState("");
+  const [adminFullName, setAdminFullName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
+  const isDirty = municipalityName || adminFullName || adminEmail || adminPassword;
+
   const reset = () => {
-    setName("");
-    setProvince("");
-    setIstatCode("");
+    setMunicipalityName("");
+    setAdminFullName("");
+    setAdminEmail("");
+    setAdminPassword("");
     setFeedback(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setFeedback({ type: "error", text: "Il nome del Comune e obbligatorio." });
+    if (!municipalityName.trim()) {
+      setFeedback({ type: "error", text: "Il nome del Comune è obbligatorio." });
       nameRef.current?.focus();
       return;
     }
@@ -64,22 +69,21 @@ function CreateMunicipalityForm({
 
     try {
       const fd = new FormData();
-      fd.append("name", name.trim());
-      fd.append("province", province.trim());
-      fd.append("istatCode", istatCode.trim());
+      fd.append("municipalityName", municipalityName.trim());
+      fd.append("adminFullName", adminFullName.trim());
+      fd.append("adminEmail", adminEmail.trim());
+      fd.append("adminPassword", adminPassword);
 
-      const result = await createMunicipalitySimple(fd);
+      const result = await createMunicipalityAndAdmin(fd);
 
       if (!result.success) {
         setFeedback({ type: "error", text: result.error ?? "Errore sconosciuto." });
         return;
       }
 
-      setFeedback({ type: "success", text: `Comune "${name.trim()}" creato con successo!` });
-      onCreated(result.data as Municipality);
-      setName("");
-      setProvince("");
-      setIstatCode("");
+      setFeedback({ type: "success", text: "Ente e Admin creati con successo!" });
+      onCreated(result.municipality as Municipality);
+      reset();
       router.refresh();
     } catch (err) {
       console.error("Errore imprevisto:", err);
@@ -91,9 +95,9 @@ function CreateMunicipalityForm({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <h2 className="text-lg font-bold text-slate-800 mb-1">Crea Nuovo Comune</h2>
+      <h2 className="text-lg font-bold text-slate-800 mb-1">Crea Nuovo Ente</h2>
       <p className="text-xs text-slate-500 mb-5">
-        Inserisci solo i dati identificativi del Comune. Potrai assegnare un Admin Ente in un secondo momento.
+        Compila tutti i campi per creare contestualmente il Comune e il suo Admin Ente.
       </p>
 
       {feedback && (
@@ -105,14 +109,15 @@ function CreateMunicipalityForm({
               : "bg-rose-50 text-rose-700 border border-rose-200"
           }`}
         >
-          <span>{feedback.type === "success" ? "v" : "x"}</span>
+          <span>{feedback.type === "success" ? "✓" : "✕"}</span>
           <span>{feedback.text}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Nome Comune */}
+          <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Nome Comune <span className="text-rose-500">*</span>
             </label>
@@ -120,30 +125,56 @@ function CreateMunicipalityForm({
               ref={nameRef}
               required
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={municipalityName}
+              onChange={(e) => setMunicipalityName(e.target.value)}
               placeholder="es. Milano"
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
             />
           </div>
+
+          {/* Nome e Cognome Responsabile Admin */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Provincia</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Nome e Cognome Responsabile Admin <span className="text-rose-500">*</span>
+            </label>
             <input
+              required
               type="text"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-              placeholder="es. MI"
-              maxLength={2}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none uppercase"
+              value={adminFullName}
+              onChange={(e) => setAdminFullName(e.target.value)}
+              placeholder="es. Mario Rossi"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
             />
           </div>
+
+          {/* Email Istituzionale / Login */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Codice ISTAT</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Email Istituzionale / Login <span className="text-rose-500">*</span>
+            </label>
             <input
-              type="text"
-              value={istatCode}
-              onChange={(e) => setIstatCode(e.target.value)}
-              placeholder="es. 015146"
+              required
+              type="email"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              placeholder="es. admin@comune.milano.it"
+              autoComplete="off"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
+            />
+          </div>
+
+          {/* Password Iniziale */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Password Iniziale <span className="text-rose-500">*</span>
+            </label>
+            <input
+              required
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Minimo 6 caratteri"
+              autoComplete="new-password"
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none"
             />
           </div>
@@ -155,9 +186,9 @@ function CreateMunicipalityForm({
             disabled={submitting}
             className="bg-slate-900 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800 transition-all text-sm disabled:opacity-50"
           >
-            {submitting ? "Creazione in corso..." : "Crea Comune"}
+            {submitting ? "Creazione in corso..." : "Crea e Attiva Ente"}
           </button>
-          {(name || province || istatCode) && (
+          {isDirty && !submitting && (
             <button
               type="button"
               onClick={reset}
@@ -396,28 +427,12 @@ export default function SuperAdminPage() {
         {municipalities.length > 0 ? (
           <div className="divide-y divide-slate-100">
             {municipalities.map((m) => (
-              <div key={m.id} className="py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div key={m.id} className="py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                 <div className="flex-1">
-                  <p className="font-bold text-slate-900 text-lg">
-                    {m.name} {m.province && <span className="text-sm font-normal text-slate-500">({m.province})</span>}
+                  <p className="font-bold text-slate-900 text-base">
+                    {m.name}
                   </p>
-                  <p className="text-sm font-medium text-slate-500 mb-2">Admin Ente: {m.contact_name || "—"}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <div>
-                      <p className="text-xs font-bold text-slate-700">Ref 1: {m.ref1_name || "N.D."}</p>
-                      {m.ref1_role && <p className="text-xs text-slate-500">{m.ref1_role}</p>}
-                      {(m.ref1_phone || m.ref1_email) && (
-                        <p className="text-xs text-slate-500 mt-1">{m.ref1_phone} {m.ref1_phone && m.ref1_email && "•"} {m.ref1_email}</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-700">Ref 2: {m.ref2_name || "N.D."}</p>
-                      {m.ref2_role && <p className="text-xs text-slate-500">{m.ref2_role}</p>}
-                      {(m.ref2_phone || m.ref2_email) && (
-                        <p className="text-xs text-slate-500 mt-1">{m.ref2_phone} {m.ref2_phone && m.ref2_email && "•"} {m.ref2_email}</p>
-                      )}
-                    </div>
-                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">Admin Ente: {m.contact_name || "—"}</p>
                 </div>
                 <button onClick={() => handleEdit(m)} className="text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-4 py-2 rounded-lg transition-colors">
                   Modifica
