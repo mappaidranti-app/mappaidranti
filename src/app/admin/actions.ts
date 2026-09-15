@@ -310,6 +310,69 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
   if (!municipalityName) return { success: false, error: "Il nome del Comune è obbligatorio." };
   if (!adminFullName) return { success: false, error: "Il nome del Responsabile Admin è obbligatorio." };
   if (!adminEmail) return { success: false, error: "L'email istituzionale è obbligatoria." };
+  if (!adminPassword || adminPassword.length < 6) return { success: false, error: "La password deve essere di almeno 6 caratteri." };
+
+  let newUserId: string | null = null;
+  let newMunicipalityId: string | null = null;
+
+  try {
+    // Passaggio 1: crea l'utente Auth
+    const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+    });
+
+    if (userErr || !newUser?.user?.id) {
+      console.error("createMunicipalityAndAdmin – errore creazione Auth:", userErr);
+      return { success: false, error: `Errore creazione utente Auth: ${userErr?.message ?? "risposta vuota"}` };
+    }
+    newUserId = newUser.user.id;
+
+    // Passaggio 2: crea il Comune
+    const { data: newMunicipality, error: munErr } = await supabaseAdmin
+      .from("municipalities")
+      .insert({ name: municipalityName, contact_name: adminFullName })
+      .select()
+      .single();
+
+    if (munErr || !newMunicipality?.id) {
+      console.error("createMunicipalityAndAdmin – errore creazione Comune:", munErr);
+      // Rollback utente Auth
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return { success: false, error: `Errore creazione Comune nel DB: ${munErr?.message ?? "risposta vuota"}` };
+    }
+    newMunicipalityId = newMunicipality.id;
+
+    // Passaggio 3: inserisce/aggiorna il profilo assegnando il ruolo admin_ente
+    const { error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .upsert({
+        id: newUserId,
+        full_name: adminFullName,
+        email: adminEmail,
+        role: "admin_ente",
+        municipality_id: newMunicipalityId,
+      });
+
+    if (profileErr) {
+      console.error("createMunicipalityAndAdmin – errore upsert profilo:", profileErr);
+      // Rollback: elimina Comune e utente Auth
+      await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipalityId);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return { success: false, error: `Errore salvataggio profilo Admin Ente: ${profileErr.message}` };
+    }
+
+    revalidatePath("/admin/superadmin");
+    return { success: true, municipality: newMunicipality };
+  } catch (err: any) {
+    console.error("createMunicipalityAndAdmin – eccezione:", err);
+    // Tentativo di rollback best-effort
+    if (newMunicipalityId) await Promise.resolve(supabaseAdmin.from("municipalities").delete().eq("id", newMunicipalityId)).catch(() => {});
+    if (newUserId) await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
+    return { success: false, error: `Errore imprevisto: ${String(err)}` };
+  }
+}
 
 /**
  * Aggiorna i dati di un Comune esistente (solo super admin).
