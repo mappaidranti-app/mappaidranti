@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return;
       }
 
-      if (profile?.role === "referent" || profile?.role === "superadmin") {
+      if (profile?.role === "referent" || profile?.role === "superadmin" || profile?.role === "admin_ente") {
         setRole(profile.role);
         setIsAuthorized(true);
       } else {
@@ -140,7 +140,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="text-xs mt-1 text-slate-400">Pannello di Controllo</p>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          {role === "superadmin" && (
+          {(role === "superadmin" || role === "referent") && (
             <Link href="/admin/superadmin" className="block px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-colors">
               Gestione Comuni
             </Link>

@@ -72,37 +72,42 @@ export async function getDashboardData(userId: string) {
       return { error: "Errore durante la lettura del profilo" };
     }
 
-    if (!profile || profile.role !== "referent") return { error: "Non autorizzato o profilo mancante" };
+    // Ruoli ammessi al pannello admin
+    const ADMIN_ROLES = ["referent", "superadmin", "admin_ente"];
+    if (!profile || !ADMIN_ROLES.includes(profile.role)) {
+      return { error: "Non autorizzato o profilo mancante" };
+    }
 
-  const isSuperAdmin = !profile?.municipality_id;
-  const municipalityId = profile?.municipality_id;
+    // superadmin e referent senza municipality_id vedono tutto
+    const isSuperAdmin = profile.role === "superadmin" || profile.role === "referent" && !profile.municipality_id;
+    const municipalityId = profile.municipality_id;
 
-  // Super admin vede tutti i comuni; referente vede solo il suo
-  const { data: municipalities } = isSuperAdmin
-    ? await supabaseAdmin.from("municipalities").select("*").order("name")
-    : await supabaseAdmin.from("municipalities").select("*").eq("id", municipalityId).limit(1);
+    // Super admin vede tutti i comuni; referente/admin_ente vede solo il suo
+    const { data: municipalities } = isSuperAdmin
+      ? await supabaseAdmin.from("municipalities").select("*").order("name")
+      : await supabaseAdmin.from("municipalities").select("*").eq("id", municipalityId).limit(1);
 
-  const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
+    const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
 
-  let operators: { id: string, full_name: string, email: string, created_at: string, municipality_id?: string }[] = [];
-  if (isSuperAdmin) {
-    const { data: ops } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, created_at, municipality_id")
-      .eq("role", "operator")
-      .order("created_at", { ascending: false });
-    if (ops) operators = ops;
-  } else if (municipality) {
-    const { data: ops } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, created_at, municipality_id")
-      .eq("role", "operator")
-      .eq("municipality_id", municipality.id)
-      .order("created_at", { ascending: false });
-    if (ops) operators = ops;
-  }
+    let operators: { id: string, full_name: string, email: string, created_at: string, municipality_id?: string }[] = [];
+    if (isSuperAdmin) {
+      const { data: ops } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, created_at, municipality_id")
+        .eq("role", "operator")
+        .order("created_at", { ascending: false });
+      if (ops) operators = ops;
+    } else if (municipality) {
+      const { data: ops } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, created_at, municipality_id")
+        .eq("role", "operator")
+        .eq("municipality_id", municipality.id)
+        .order("created_at", { ascending: false });
+      if (ops) operators = ops;
+    }
 
-  return { isSuperAdmin, municipalities: municipalities || [], municipality, operators, referentId: userId };
+    return { isSuperAdmin, municipalities: municipalities || [], municipality, operators, referentId: userId };
   } catch (err: any) {
     console.error("Eccezione in getDashboardData:", err);
     return { error: "Errore imprevisto nel caricamento della dashboard" };
@@ -395,7 +400,10 @@ export async function updateMunicipality(formData: FormData) {
       return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
     }
     
-    if (callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
+    // Solo superadmin (role === "superadmin") o referent globale (role "referent" senza municipality_id) possono modificare
+    const isSuperAdmin = callerProfile?.role === "superadmin" ||
+      (callerProfile?.role === "referent" && !callerProfile?.municipality_id);
+    if (!isSuperAdmin) {
       return { success: false, error: "Non autorizzato: solo il super admin può modificare i comuni" };
     }
 

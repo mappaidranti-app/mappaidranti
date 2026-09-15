@@ -44,7 +44,9 @@ export default function AdminEnteDashboard() {
           .single();
           
         if (profile) {
-          const mId = profile.role === "referent" ? profile.municipality_id : null;
+          // admin_ente e referent vedono solo il proprio Comune; superadmin vede tutto
+          const munScopedRoles = ["referent", "admin_ente"];
+          const mId = munScopedRoles.includes(profile.role) ? profile.municipality_id : null;
           setMunicipalityId(mId);
           fetchHydrants(mId);
         }
