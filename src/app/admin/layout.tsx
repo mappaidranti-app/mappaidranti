@@ -146,8 +146,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           )}
           <Link href="/admin" className="block px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-colors">
-            Lista Idranti
+            {role === "admin_ente" ? "Dashboard Ente" : "Lista Idranti"}
           </Link>
+          {role === "admin_ente" && (
+            <Link href="/" className="block px-4 py-3 rounded-xl hover:bg-slate-800 hover:text-white transition-colors">
+              Vai alla Mappa
+            </Link>
+          )}
         </nav>
         <div className="p-4 border-t border-slate-800">
           <LogoutButton />

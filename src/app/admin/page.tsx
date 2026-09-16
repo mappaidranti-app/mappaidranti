@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Hydrant } from "@/types/hydrant";
 import { Download } from "lucide-react";
+import OperatorsManager from "@/components/operators-manager";
 
 type FilterType = "all" | "broken" | "missing_parts" | "maintenance";
 
@@ -12,6 +13,9 @@ export default function AdminEnteDashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
+  const [municipalityName, setMunicipalityName] = useState<string>("Il tuo Comune");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const fetchHydrants = useCallback(async (munId: string | null) => {
     if (!supabase) {
@@ -37,6 +41,7 @@ export default function AdminEnteDashboard() {
       if (!supabase) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        setUserId(session.user.id);
         const { data: profile } = await supabase
           .from("profiles")
           .select("municipality_id, role")
@@ -44,11 +49,19 @@ export default function AdminEnteDashboard() {
           .single();
           
         if (profile) {
+          setUserRole(profile.role);
           // admin_ente e referent vedono solo il proprio Comune; superadmin vede tutto
           const munScopedRoles = ["referent", "admin_ente"];
           const mId = munScopedRoles.includes(profile.role) ? profile.municipality_id : null;
           setMunicipalityId(mId);
           fetchHydrants(mId);
+
+          if (mId) {
+            const { data: mun } = await supabase.from("municipalities").select("name").eq("id", mId).single();
+            if (mun && mun.name) {
+              setMunicipalityName(mun.name);
+            }
+          }
         }
       }
     }
@@ -212,6 +225,13 @@ export default function AdminEnteDashboard() {
           </table>
         </div>
       </div>
+
+      {userId && municipalityId && (
+        <OperatorsManager 
+          municipalities={[{ id: municipalityId, name: municipalityName }]} 
+          referentId={userId} 
+        />
+      )}
     </div>
   );
 }
