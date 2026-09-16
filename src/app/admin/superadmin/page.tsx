@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import {
   createMunicipalityAndAdmin,
   getDashboardData,
-  updateMunicipality,
 } from "@/app/admin/actions";
 import OperatorsManager from "@/components/operators-manager";
 
@@ -208,28 +207,9 @@ function CreateMunicipalityForm({
 // ---------------------------------------------------------------------------
 export default function SuperAdminPage() {
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
   const [referentId, setReferentId] = useState<string | null>(null);
-
-  const [editingMun, setEditingMun] = useState<Municipality | null>(null);
-  const [showEditForm, setShowEditForm] = useState(false);
-
-  const [munName, setMunName] = useState("");
-  const [province, setProvince] = useState("");
-  const [notes, setNotes] = useState("");
-  const [ref1Name, setRef1Name] = useState("");
-  const [ref1Role, setRef1Role] = useState("");
-  const [ref1Phone, setRef1Phone] = useState("");
-  const [ref1Email, setRef1Email] = useState("");
-  const [ref2Name, setRef2Name] = useState("");
-  const [ref2Role, setRef2Role] = useState("");
-  const [ref2Phone, setRef2Phone] = useState("");
-  const [ref2Email, setRef2Email] = useState("");
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editFeedback, setEditFeedback] = useState<Feedback>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -249,74 +229,6 @@ export default function SuperAdminPage() {
     loadData();
   }, []);
 
-  const handleEdit = (m: Municipality) => {
-    setEditingMun(m);
-    setMunName(m.name || "");
-    setProvince(m.province || "");
-    setNotes(m.notes || "");
-    setRef1Name(m.ref1_name || "");
-    setRef1Role(m.ref1_role || "");
-    setRef1Phone(m.ref1_phone || "");
-    setRef1Email(m.ref1_email || "");
-    setRef2Name(m.ref2_name || "");
-    setRef2Role(m.ref2_role || "");
-    setRef2Phone(m.ref2_phone || "");
-    setRef2Email(m.ref2_email || "");
-    setEditFeedback(null);
-    setShowEditForm(true);
-    window.scrollTo(0, 0);
-  };
-
-  const resetEditForm = () => {
-    setMunName(""); setProvince(""); setNotes("");
-    setRef1Name(""); setRef1Role(""); setRef1Phone(""); setRef1Email("");
-    setRef2Name(""); setRef2Role(""); setRef2Phone(""); setRef2Email("");
-    setEditFeedback(null);
-    setShowEditForm(false);
-    setEditingMun(null);
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!referentId || !editingMun) return;
-
-    setIsSubmitting(true);
-    setEditFeedback(null);
-
-    try {
-      const fd = new FormData();
-      fd.append("municipalityId", editingMun.id);
-      fd.append("callerUserId", referentId);
-      fd.append("municipalityName", munName);
-      fd.append("province", province);
-      fd.append("notes", notes);
-      fd.append("ref1Name", ref1Name);
-      fd.append("ref1Role", ref1Role);
-      fd.append("ref1Phone", ref1Phone);
-      fd.append("ref1Email", ref1Email);
-      fd.append("ref2Name", ref2Name);
-      fd.append("ref2Role", ref2Role);
-      fd.append("ref2Phone", ref2Phone);
-      fd.append("ref2Email", ref2Email);
-
-      const result = await updateMunicipality(fd);
-
-      if (result?.error) {
-        setEditFeedback({ type: "error", text: result.error });
-      } else {
-        setEditFeedback({ type: "success", text: `Comune "${munName}" aggiornato con successo!` });
-        const res = await getDashboardData(referentId);
-        if (res.municipalities) setMunicipalities(res.municipalities as Municipality[]);
-        router.refresh();
-      }
-    } catch (err) {
-      console.error("Errore imprevisto nel frontend:", err);
-      setEditFeedback({ type: "error", text: "Errore imprevisto di rete." });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   if (loading) {
     return <div className="p-8 text-center">Caricamento...</div>;
   }
@@ -334,93 +246,6 @@ export default function SuperAdminPage() {
         onCreated={(m) => setMunicipalities((prev) => [...prev, m])}
       />
 
-      {/* Modifica Comune */}
-      {showEditForm && editingMun && (
-        <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 p-6">
-          <div className="flex justify-between items-center mb-5">
-            <h2 className="text-lg font-bold text-slate-800">Modifica: {editingMun.name}</h2>
-            <button onClick={resetEditForm} className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-              Chiudi
-            </button>
-          </div>
-
-          {editFeedback && (
-            <div
-              role="alert"
-              className={`flex items-start gap-2 rounded-xl px-4 py-3 mb-5 text-sm font-semibold ${
-                editFeedback.type === "success"
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-rose-50 text-rose-700 border border-rose-200"
-              }`}
-            >
-              <span>{editFeedback.type === "success" ? "v" : "x"}</span>
-              <span>{editFeedback.text}</span>
-            </div>
-          )}
-
-          <form ref={formRef} onSubmit={handleUpdate} noValidate className="space-y-6">
-            <div>
-              <h3 className="text-md font-bold text-slate-700 mb-3 border-b pb-2">Dati Comune</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Nome Comune *</label>
-                  <input required value={munName} onChange={(e) => setMunName(e.target.value)} type="text"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Provincia</label>
-                  <input value={province} onChange={(e) => setProvince(e.target.value)} type="text"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Note</label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-md font-bold text-slate-700 mb-3 border-b pb-2">Referente Ufficiale 1</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Nome Cognome</label>
-                  <input value={ref1Name} onChange={(e) => setRef1Name(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Ruolo</label>
-                  <input value={ref1Role} onChange={(e) => setRef1Role(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Telefono</label>
-                  <input value={ref1Phone} onChange={(e) => setRef1Phone(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
-                  <input value={ref1Email} onChange={(e) => setRef1Email(e.target.value)} type="email" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-md font-bold text-slate-700 mb-3 border-b pb-2">Referente Ufficiale 2</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Nome Cognome</label>
-                  <input value={ref2Name} onChange={(e) => setRef2Name(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Ruolo</label>
-                  <input value={ref2Role} onChange={(e) => setRef2Role(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Telefono</label>
-                  <input value={ref2Phone} onChange={(e) => setRef2Phone(e.target.value)} type="text" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-                <div><label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
-                  <input value={ref2Email} onChange={(e) => setRef2Email(e.target.value)} type="email" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-slate-500 outline-none" /></div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button disabled={isSubmitting} type="submit"
-                className="bg-indigo-600 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition-all text-sm disabled:opacity-50">
-                {isSubmitting ? "Salvataggio..." : "Salva Modifiche"}
-              </button>
-              <button type="button" onClick={resetEditForm} className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-                Annulla
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {/* Lista Comuni */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h2 className="text-lg font-bold text-slate-800 mb-4">Comuni Registrati</h2>
@@ -434,9 +259,6 @@ export default function SuperAdminPage() {
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">Admin Ente: {m.contact_name || "—"}</p>
                 </div>
-                <button onClick={() => handleEdit(m)} className="text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-4 py-2 rounded-lg transition-colors">
-                  Modifica
-                </button>
               </div>
             ))}
           </div>

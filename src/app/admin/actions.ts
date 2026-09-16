@@ -379,63 +379,7 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
   }
 }
 
-/**
- * Aggiorna i dati di un Comune esistente (solo super admin).
- */
-export async function updateMunicipality(formData: FormData) {
-  try {
-    const municipalityId = formData.get("municipalityId") as string;
-    const callerUserId = formData.get("callerUserId") as string;
 
-    if (!callerUserId || !municipalityId) return { success: false, error: "Dati mancanti o utente non autenticato" };
-
-    const { data: callerProfile, error: callerErr } = await supabaseAdmin
-      .from("profiles")
-      .select("role, municipality_id")
-      .eq("id", callerUserId)
-      .single();
-
-    if (callerErr) {
-      console.error("Dettaglio errore recupero profilo (update):", JSON.stringify(callerErr, null, 2));
-      return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
-    }
-    
-    // Solo superadmin (role === "superadmin") o referent globale (role "referent" senza municipality_id) possono modificare
-    const isSuperAdmin = callerProfile?.role === "superadmin" ||
-      (callerProfile?.role === "referent" && !callerProfile?.municipality_id);
-    if (!isSuperAdmin) {
-      return { success: false, error: "Non autorizzato: solo il super admin può modificare i comuni" };
-    }
-
-    const { error } = await supabaseAdmin
-      .from("municipalities")
-      .update({
-        name: formData.get("municipalityName") as string,
-        province: (formData.get("province") as string) || null,
-        notes: (formData.get("notes") as string) || null,
-        ref1_name: (formData.get("ref1Name") as string) || null,
-        ref1_role: (formData.get("ref1Role") as string) || null,
-        ref1_phone: (formData.get("ref1Phone") as string) || null,
-        ref1_email: (formData.get("ref1Email") as string) || null,
-        ref2_name: (formData.get("ref2Name") as string) || null,
-        ref2_role: (formData.get("ref2Role") as string) || null,
-        ref2_phone: (formData.get("ref2Phone") as string) || null,
-        ref2_email: (formData.get("ref2Email") as string) || null,
-      })
-      .eq("id", municipalityId);
-
-    if (error) {
-      console.error("Errore in updateMunicipality:", error);
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/superadmin");
-    return { success: true };
-  } catch (err: any) {
-    console.error("Errore catchato in updateMunicipality:", err);
-    return { success: false, error: err.message || "Errore imprevisto" };
-  }
-}
 
 /**
  * Crea un nuovo operatore per il comune del referente corrente.
