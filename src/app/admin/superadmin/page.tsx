@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import {
   createMunicipalityAndAdmin,
   getDashboardData,
+  updateMunicipalityAndAdmin,
+  deleteMunicipalityAndAdmin,
 } from "@/app/admin/actions";
 import OperatorsManager from "@/components/operators-manager";
 
@@ -13,16 +15,10 @@ type Municipality = {
   id: string;
   name: string;
   contact_name: string;
+  admin_email?: string;
+  admin_id?: string;
   province?: string;
   notes?: string;
-  ref1_name?: string;
-  ref1_role?: string;
-  ref1_phone?: string;
-  ref1_email?: string;
-  ref2_name?: string;
-  ref2_role?: string;
-  ref2_phone?: string;
-  ref2_email?: string;
 };
 
 type Feedback = { type: "success" | "error"; text: string } | null;
@@ -211,6 +207,18 @@ export default function SuperAdminPage() {
   const [loading, setLoading] = useState(true);
   const [referentId, setReferentId] = useState<string | null>(null);
 
+  const [editingMun, setEditingMun] = useState<Municipality | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAdminName, setEditAdminName] = useState("");
+  const [editAdminEmail, setEditAdminEmail] = useState("");
+  const [editAdminPassword, setEditAdminPassword] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [editFeedback, setEditFeedback] = useState<Feedback>(null);
+
+  const [deletingMun, setDeletingMun] = useState<Municipality | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+
   useEffect(() => {
     async function loadData() {
       if (!supabase) return;
@@ -228,6 +236,73 @@ export default function SuperAdminPage() {
     }
     loadData();
   }, []);
+
+  const handleEditClick = (m: Municipality) => {
+    setEditingMun(m);
+    setEditName(m.name);
+    setEditAdminName(m.contact_name);
+    setEditAdminEmail(m.admin_email || "");
+    setEditAdminPassword("");
+    setEditFeedback(null);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMun) return;
+
+    setIsUpdating(true);
+    setEditFeedback(null);
+
+    const fd = new FormData();
+    fd.append("municipalityId", editingMun.id);
+    fd.append("municipalityName", editName.trim());
+    fd.append("adminFullName", editAdminName.trim());
+    fd.append("adminEmail", editAdminEmail.trim());
+    if (editAdminPassword) {
+      fd.append("adminPassword", editAdminPassword);
+    }
+
+    const res = await updateMunicipalityAndAdmin(fd);
+    setIsUpdating(false);
+
+    if (!res.success) {
+      setEditFeedback({ type: "error", text: res.error || "Errore durante l'aggiornamento" });
+      return;
+    }
+
+    setEditFeedback({ type: "success", text: "Modifiche salvate con successo!" });
+    
+    // Ricarica la lista localmente
+    setMunicipalities((prev) =>
+      prev.map((m) =>
+        m.id === editingMun.id
+          ? { ...m, name: editName, contact_name: editAdminName, admin_email: editAdminEmail }
+          : m
+      )
+    );
+    
+    setTimeout(() => {
+      setEditingMun(null);
+    }, 1500);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingMun) return;
+    setIsDeleting(true);
+
+    const fd = new FormData();
+    fd.append("municipalityId", deletingMun.id);
+    
+    const res = await deleteMunicipalityAndAdmin(fd);
+    setIsDeleting(false);
+
+    if (res.success) {
+      setMunicipalities((prev) => prev.filter((m) => m.id !== deletingMun.id));
+      setDeletingMun(null);
+    } else {
+      alert("Errore eliminazione: " + res.error);
+    }
+  };
 
   if (loading) {
     return <div className="p-8 text-center">Caricamento...</div>;
@@ -257,7 +332,15 @@ export default function SuperAdminPage() {
                   <p className="font-bold text-slate-900 text-base">
                     {m.name}
                   </p>
-                  <p className="text-sm text-slate-500 mt-0.5">Admin Ente: {m.contact_name || "—"}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">Admin Ente: {m.contact_name || "—"} {m.admin_email ? `(${m.admin_email})` : ""}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleEditClick(m)} className="text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-4 py-2 rounded-lg transition-colors">
+                    Modifica
+                  </button>
+                  <button onClick={() => setDeletingMun(m)} className="text-sm font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-4 py-2 rounded-lg transition-colors">
+                    Elimina
+                  </button>
                 </div>
               </div>
             ))}
@@ -270,6 +353,78 @@ export default function SuperAdminPage() {
       </div>
 
       {referentId && <OperatorsManager municipalities={municipalities} referentId={referentId} />}
+
+      {/* Modal Modifica */}
+      {editingMun && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-lg text-slate-800">Modifica Comune</h3>
+              <button onClick={() => setEditingMun(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              {editFeedback && (
+                <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold ${editFeedback.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                  {editFeedback.text}
+                </div>
+              )}
+              
+              <form id="editForm" onSubmit={handleUpdate} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nome Comune <span className="text-rose-500">*</span></label>
+                  <input required type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nome Admin <span className="text-rose-500">*</span></label>
+                  <input required type="text" value={editAdminName} onChange={(e) => setEditAdminName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Admin <span className="text-rose-500">*</span></label>
+                  <input required type="email" value={editAdminEmail} onChange={(e) => setEditAdminEmail(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nuova Password (lascia vuoto per non cambiare)</label>
+                  <input type="password" value={editAdminPassword} onChange={(e) => setEditAdminPassword(e.target.value)} placeholder="Minimo 6 caratteri" autoComplete="new-password" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingMun(null)} className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
+                Annulla
+              </button>
+              <button type="submit" form="editForm" disabled={isUpdating} className="px-5 py-2.5 text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-50">
+                {isUpdating ? "Salvataggio..." : "Salva Modifiche"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Eliminazione */}
+      {deletingMun && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4 text-rose-600 text-xl font-bold">!</div>
+              <h3 className="font-bold text-lg text-slate-800 mb-2">Elimina Comune</h3>
+              <p className="text-sm text-slate-500">
+                Sei sicuro di voler eliminare il comune <strong>{deletingMun.name}</strong> e il suo account Admin associato? Questa operazione è irreversibile.
+              </p>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button type="button" onClick={() => setDeletingMun(null)} className="flex-1 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
+                Annulla
+              </button>
+              <button type="button" onClick={handleDelete} disabled={isDeleting} className="flex-1 py-2.5 text-sm font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-50">
+                {isDeleting ? "Eliminazione..." : "Elimina Definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

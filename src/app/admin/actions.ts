@@ -83,9 +83,31 @@ export async function getDashboardData(userId: string) {
     const municipalityId = profile.municipality_id;
 
     // Super admin vede tutti i comuni; referente/admin_ente vede solo il suo
-    const { data: municipalities } = isSuperAdmin
+    const { data: rawMunicipalities } = isSuperAdmin
       ? await supabaseAdmin.from("municipalities").select("*").order("name")
       : await supabaseAdmin.from("municipalities").select("*").eq("id", municipalityId).limit(1);
+
+    const municipalities = rawMunicipalities || [];
+
+    // Recupera anche i profili admin_ente per associarli ai comuni
+    if (municipalities.length > 0) {
+      const municipalityIds = municipalities.map((m) => m.id);
+      const { data: admins } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, municipality_id")
+        .eq("role", "admin_ente")
+        .in("municipality_id", municipalityIds);
+
+      if (admins) {
+        municipalities.forEach((m: any) => {
+          const admin = admins.find((a) => a.municipality_id === m.id);
+          if (admin) {
+            m.admin_email = admin.email;
+            m.admin_id = admin.id;
+          }
+        });
+      }
+    }
 
     const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
 
@@ -375,6 +397,113 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
     // Tentativo di rollback best-effort
     if (newMunicipalityId) await Promise.resolve(supabaseAdmin.from("municipalities").delete().eq("id", newMunicipalityId)).catch(() => {});
     if (newUserId) await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
+    return { success: false, error: `Errore imprevisto: ${String(err)}` };
+  }
+}
+
+/**
+ * Aggiorna i 4 campi base di un Comune e del suo Admin Ente associato.
+ */
+export async function updateMunicipalityAndAdmin(formData: FormData) {
+  try {
+    const municipalityId = formData.get("municipalityId") as string;
+    const municipalityName = formData.get("municipalityName") as string;
+    const adminFullName = formData.get("adminFullName") as string;
+    const adminEmail = formData.get("adminEmail") as string;
+    const adminPassword = formData.get("adminPassword") as string; // Optional
+
+    if (!municipalityId || !municipalityName || !adminFullName || !adminEmail) {
+      return { success: false, error: "Dati mancanti" };
+    }
+
+    // 1. Aggiorna tabella municipalities
+    const { error: munErr } = await supabaseAdmin
+      .from("municipalities")
+      .update({ name: municipalityName, contact_name: adminFullName })
+      .eq("id", municipalityId);
+    
+    if (munErr) {
+      return { success: false, error: `Errore aggiornamento Comune: ${munErr.message}` };
+    }
+
+    // 2. Trova l'utente Admin Ente associato
+    const { data: adminProfile, error: adminProfileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("municipality_id", municipalityId)
+      .eq("role", "admin_ente")
+      .single();
+
+    if (adminProfile && adminProfile.id) {
+      const adminId = adminProfile.id;
+
+      // 3. Aggiorna utente Auth
+      const updateData: any = { email: adminEmail };
+      if (adminPassword && adminPassword.trim().length >= 6) {
+        updateData.password = adminPassword;
+      }
+      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(adminId, updateData);
+      
+      if (authErr) {
+        return { success: false, error: `Errore aggiornamento Auth: ${authErr.message}` };
+      }
+
+      // 4. Aggiorna profilo
+      const { error: profErr } = await supabaseAdmin
+        .from("profiles")
+        .update({ full_name: adminFullName, email: adminEmail })
+        .eq("id", adminId);
+        
+      if (profErr) {
+        return { success: false, error: `Errore aggiornamento Profilo: ${profErr.message}` };
+      }
+    }
+
+    revalidatePath("/admin/superadmin");
+    return { success: true };
+  } catch (err: any) {
+    console.error("updateMunicipalityAndAdmin – eccezione:", err);
+    return { success: false, error: `Errore imprevisto: ${String(err)}` };
+  }
+}
+
+/**
+ * Elimina un Comune e il suo utente Admin Ente associato.
+ */
+export async function deleteMunicipalityAndAdmin(formData: FormData) {
+  try {
+    const municipalityId = formData.get("municipalityId") as string;
+    if (!municipalityId) return { success: false, error: "ID Comune mancante" };
+
+    // Trova l'utente Admin Ente associato
+    const { data: adminProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("municipality_id", municipalityId)
+      .eq("role", "admin_ente")
+      .single();
+
+    // Elimina il Comune dalla tabella (questo causerà CASCADE su eventuali profili e record correlati se FK sono impostate correttamente)
+    const { error: munErr } = await supabaseAdmin
+      .from("municipalities")
+      .delete()
+      .eq("id", municipalityId);
+
+    if (munErr) {
+      return { success: false, error: `Errore eliminazione Comune: ${munErr.message}` };
+    }
+
+    // Se troviamo l'admin, eliminiamo anche da Supabase Auth
+    // Se la FK su profiles a municipalities è ON DELETE CASCADE, il profilo è già rimosso, 
+    // ma l'utente Auth va sempre rimosso esplicitamente.
+    if (adminProfile && adminProfile.id) {
+      await supabaseAdmin.auth.admin.deleteUser(adminProfile.id);
+    }
+
+    revalidatePath("/admin/superadmin");
+    return { success: true };
+  } catch (err: any) {
+    console.error("deleteMunicipalityAndAdmin – eccezione:", err);
     return { success: false, error: `Errore imprevisto: ${String(err)}` };
   }
 }
