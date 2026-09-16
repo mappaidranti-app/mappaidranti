@@ -308,7 +308,7 @@ export default function HydrantMap() {
             loadedMunicipalityId = profile.municipality_id;
             setMunicipalityId(loadedMunicipalityId);
           }
-          if (profile?.role === "referent" || profile?.role === "superadmin") {
+          if (profile?.role === "referent" || profile?.role === "superadmin" || profile?.role === "admin_ente") {
             setIsAdmin(true);
             setCanEdit(true);
           } else if (profile?.role === "operator") {
@@ -1642,7 +1642,7 @@ export default function HydrantMap() {
       </aside>
 
       {/* ── PULSANTE NUOVO IDRANTE — Grande e ben visibile ── */}
-      {isAdmin && !draftPosition && (
+      {canEdit && !draftPosition && (
         <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
           <div className="relative pointer-events-auto">
             {/* Alone pulsante per attirare l'attenzione */}
