@@ -45,6 +45,8 @@ export type Hydrant = {
   pit_status?: PitStatus | null;
   /** Stato del cappellotto della colonna idrante */
   cappellotto_status?: CappellottoStatus | null;
+  /** Presenza di perdita d'acqua visibile */
+  water_leak?: boolean | null;
 };
 
 export type HydrantFormState = {
@@ -71,4 +73,6 @@ export type HydrantFormState = {
   needs_painting: boolean | null;
   /** Stato del cappellotto colonna */
   cappellotto_status: CappellottoStatus | null;
+  /** Presenza di perdita d'acqua visibile */
+  water_leak: boolean | null;
 };

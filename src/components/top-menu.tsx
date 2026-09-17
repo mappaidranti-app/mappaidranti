@@ -95,9 +95,9 @@ export function TopMenu() {
 
       <button
         onClick={handleLogout}
-        className="text-sm text-red-600 hover:text-red-800 font-medium ml-4 border-l border-gray-200 pl-4"
+        className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-800 font-bold ml-4 border-l border-gray-200 pl-4 transition-colors"
       >
-        Esci
+        🚪 Logout
       </button>
     </nav>
   );
