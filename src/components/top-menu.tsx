@@ -15,8 +15,16 @@ export function TopMenu() {
 
   useEffect(() => {
     async function checkAuth() {
-      if (!supabase) return;
+      // Check localStorage for Operator session
+      const operatorData = localStorage.getItem("operatorData");
+      if (operatorData) {
+        setIsAuthenticated(true);
+        setIsReferent(false);
+        setIsSuperAdmin(false);
+        return;
+      }
 
+      if (!supabase) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
@@ -42,9 +50,12 @@ export function TopMenu() {
           setIsAuthenticated(true);
           checkAuth(); // Re-check role on login
         } else {
-          setIsAuthenticated(false);
-          setIsReferent(false);
-          setIsSuperAdmin(false);
+          // Verify if operator is still logged in before setting false
+          if (!localStorage.getItem("operatorData")) {
+            setIsAuthenticated(false);
+            setIsReferent(false);
+            setIsSuperAdmin(false);
+          }
         }
       }
     ) ?? { data: { subscription: { unsubscribe: () => {} } } };
@@ -55,13 +66,17 @@ export function TopMenu() {
   }, []);
 
   const handleLogout = async () => {
+    // Clear operator local session
+    localStorage.removeItem("operatorData");
+    
     if (supabase) {
       await supabase.auth.signOut();
-      setIsAuthenticated(false);
-      setIsReferent(false);
-      setIsSuperAdmin(false);
-      router.push("/login");
     }
+    
+    setIsAuthenticated(false);
+    setIsReferent(false);
+    setIsSuperAdmin(false);
+    router.push("/login");
   };
 
   // Se siamo nella pagina di login, non mostriamo i tasti del menu (tranne il titolo)

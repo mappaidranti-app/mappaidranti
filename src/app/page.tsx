@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 const HydrantMap = dynamic(() => import("@/components/hydrant-map"), {
   ssr: false,
   loading: () => (
-    <main className="grid min-h-screen place-items-center bg-slate-950 text-slate-100">
+    <main className="grid flex-1 w-full place-items-center bg-slate-950 text-slate-100">
       <div className="rounded-lg border border-slate-700 bg-slate-900 px-5 py-4 text-sm">
         Caricamento mappa idranti...
       </div>
@@ -72,7 +72,7 @@ export default function Home() {
 
   if (isAuthenticated === null) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-950 text-slate-100">
+      <main className="grid flex-1 w-full place-items-center bg-slate-950 text-slate-100">
         <div className="rounded-lg border border-slate-700 bg-slate-900 px-5 py-4 text-sm flex items-center gap-3">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-100"></div>
           Verifica autorizzazioni...

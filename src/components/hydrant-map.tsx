@@ -762,7 +762,7 @@ export default function HydrantMap() {
   }
 
   return (
-    <main className="relative h-screen overflow-hidden bg-slate-50 text-slate-950">
+    <main className="relative flex-1 w-full flex flex-col overflow-hidden bg-slate-50 text-slate-950">
       {showSplash && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-red-600 animate-out fade-out duration-500 fill-mode-forwards delay-1500 text-white">
           <Flame size={80} className="mb-4 animate-pulse text-white drop-shadow-2xl" strokeWidth={1.5} />
