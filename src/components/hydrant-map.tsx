@@ -569,20 +569,23 @@ export default function HydrantMap() {
       setMessage("Salvataggio scheda tecnica nel database...");
 
       // 2. Salvataggio record idrante
+      const isSottosuolo = form.type?.toUpperCase() === "SOTTOSUOLO";
       let calculatedDn = "";
-      if (form.uni45Count > 0) calculatedDn += `UNI 45 (${form.uni45Count}) `;
-      if (form.uni70Count > 0) calculatedDn += `UNI 70 (${form.uni70Count})`;
-      calculatedDn = calculatedDn.trim();
+      if (!isSottosuolo) {
+        if (form.uni45Count > 0) calculatedDn += `UNI 45 (${form.uni45Count}) `;
+        if (form.uni70Count > 0) calculatedDn += `UNI 70 (${form.uni70Count})`;
+        calculatedDn = calculatedDn.trim();
+      }
 
       const payload = {
         type: form.type,
         status: form.status,
         condition: form.condition,
         dn: calculatedDn || null,
-        caps_present: form.caps_status === "OK" ? true : form.caps_status === "KO" ? false : null,
-        caps_quantity: form.missingCaps ?? null,
-        chains_present: form.chains_status === "OK" ? true : form.chains_status === "KO" ? false : null,
-        chains_quantity: form.missingChains ?? null,
+        caps_present: isSottosuolo ? true : (form.caps_status === "OK" ? true : form.caps_status === "KO" ? false : null),
+        caps_quantity: isSottosuolo ? 0 : (form.missingCaps ?? null),
+        chains_present: isSottosuolo ? true : (form.chains_status === "OK" ? true : form.chains_status === "KO" ? false : null),
+        chains_quantity: isSottosuolo ? 0 : (form.missingChains ?? null),
         notes: notesWithPhoto || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
@@ -597,9 +600,9 @@ export default function HydrantMap() {
         code: form.code.trim() || null,
         has_pit: form.has_pit,
         pit_status: form.pit_status,
-        needs_painting: form.needs_painting,
+        needs_painting: isSottosuolo ? false : form.needs_painting,
         pit_photo_url: pitPhotoUrl,
-        cappellotto_status: form.cappellotto_status,
+        cappellotto_status: isSottosuolo ? "integro" : form.cappellotto_status,
         water_leak: form.water_leak ?? false,
       };
 
@@ -760,6 +763,8 @@ export default function HydrantMap() {
     setClosestFilter(newFilter);
     findClosestHydrants(newFilter);
   }
+
+  const isSottosuolo = form.type?.toUpperCase() === "SOTTOSUOLO";
 
   return (
     <main className="relative flex-1 w-full flex flex-col overflow-hidden bg-slate-50 text-slate-950">
@@ -1177,7 +1182,7 @@ export default function HydrantMap() {
                     </label>
                   ))}
                 </div>
-                {form.type === "SOTTOSUOLO" && (
+                {isSottosuolo && (
                   <div className="mt-4 flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-900 shadow-sm animate-in fade-in slide-in-from-top-2">
                     <span className="text-3xl" aria-hidden="true">🕳️</span>
                     <div>
@@ -1190,7 +1195,7 @@ export default function HydrantMap() {
 
               {/* Attacchi UNI (DN) e Accessori Mappa */}
               <div className="space-y-4">
-                {form.type !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
                     <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
                     <div className="grid grid-cols-2 gap-4">
@@ -1214,7 +1219,7 @@ export default function HydrantMap() {
                   </div>
                 )}
 
-                {form.type !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-6">
                     <div>
                       <span className="block text-base font-semibold text-slate-800 mb-3">Tappi (Ciechi)</span>
@@ -1373,7 +1378,7 @@ export default function HydrantMap() {
                   )}
                 </div>
 
-                {form.type !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4 mt-4">
                     <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
                       🧢 Cappello Colonna Idrante
@@ -1459,7 +1464,7 @@ export default function HydrantMap() {
                   </div>
                 </div>
                 
-                {form.type !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div>
                     <label className="mb-3 block text-base font-bold text-slate-800">Da Verniciare?</label>
                     <div className="flex items-center gap-6">
