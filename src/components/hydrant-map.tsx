@@ -515,6 +515,23 @@ export default function HydrantMap() {
       return;
     }
 
+    // BYPASS TOTALE campi colonna: se l'idrante è a sottosuolo, azzera in anticipo
+    // tutti i campi specifici della colonna così nessun controllo successivo li vede.
+    const isSubmitSottosuolo = String(form.type || "").trim().toLowerCase() === "sottosuolo";
+    console.log("[IDRANTYA] handleSubmit avvio - type:", JSON.stringify(form.type), "| isSubmitSottosuolo:", isSubmitSottosuolo);
+    if (isSubmitSottosuolo) {
+      // Sovrascriviamo direttamente i valori dei campi colonna nel form ref locale
+      // (non serve setForm async qui, lavoriamo sul valore al momento dell'invio)
+      form.uni45Count = 0;
+      form.uni70Count = 0;
+      form.caps_status = null;
+      form.missingCaps = 0;
+      form.chains_status = null;
+      form.missingChains = 0;
+      form.cappellotto_status = null;
+      form.needs_painting = false;
+    }
+
     setIsSaving(true);
     setMessage("Salvataggio scheda tecnica...");
 
@@ -1044,7 +1061,7 @@ export default function HydrantMap() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4 px-4 py-4">
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -1203,7 +1220,7 @@ export default function HydrantMap() {
               {/* Attacchi UNI (DN) e Accessori Mappa */}
               <div className="space-y-4">
                 {!isSottosuolo && (
-                  <div className="space-y-4">
+                  <div id="colonna-fields-container" className="space-y-4">
                     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
                       <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
                       <div className="grid grid-cols-2 gap-4">
