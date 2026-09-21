@@ -1158,23 +1158,26 @@ export default function HydrantMap() {
                         value={typeOption}
                         checked={form.type === typeOption}
                         onChange={() => {
-                          const isSottosuolo = typeOption === "SOTTOSUOLO";
-                          setForm({
-                            ...form,
-                            type: typeOption as HydrantType,
-                            ...(isSottosuolo
-                              ? {
-                                  uni45Count: 0,
-                                  uni70Count: 0,
-                                  caps_status: null,
-                                  missingCaps: null,
-                                  chains_status: null,
-                                  missingChains: null,
-                                  cappellotto_status: null,
-                                  needs_painting: null,
-                                }
-                              : {}),
-                          });
+                          const isSotto = typeOption.toUpperCase() === "SOTTOSUOLO";
+                          if (isSotto) {
+                            setForm(prev => ({
+                              ...prev,
+                              type: "SOTTOSUOLO",
+                              cappellotto_status: null,
+                              missingCaps: 0,
+                              caps_status: null,
+                              chains_status: null,
+                              missingChains: 0,
+                              needs_painting: false,
+                              uni45Count: 0,
+                              uni70Count: 0,
+                            }));
+                          } else {
+                            setForm(prev => ({
+                              ...prev,
+                              type: typeOption as HydrantType,
+                            }));
+                          }
                         }}
                         className="h-6 w-6 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300"
                       />
@@ -1195,78 +1198,117 @@ export default function HydrantMap() {
 
               {/* Attacchi UNI (DN) e Accessori Mappa */}
               <div className="space-y-4">
-                {!isSottosuolo && (
-                  <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
-                    <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-600">UNI 45</span>
-                        <div className="flex items-center gap-3">
-                          <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: Math.max(0, f.uni45Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
-                          <span className="w-8 text-center text-xl font-bold">{form.uni45Count}</span>
-                          <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: f.uni45Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                {form.type?.toUpperCase() !== "SOTTOSUOLO" && (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
+                      <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-600">UNI 45</span>
+                          <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: Math.max(0, f.uni45Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
+                            <span className="w-8 text-center text-xl font-bold">{form.uni45Count}</span>
+                            <button type="button" onClick={() => setForm(f => ({ ...f, uni45Count: f.uni45Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-600">UNI 70</span>
-                        <div className="flex items-center gap-3">
-                          <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: Math.max(0, f.uni70Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
-                          <span className="w-8 text-center text-xl font-bold">{form.uni70Count}</span>
-                          <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: f.uni70Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-600">UNI 70</span>
+                          <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: Math.max(0, f.uni70Count - 1) }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">-</button>
+                            <span className="w-8 text-center text-xl font-bold">{form.uni70Count}</span>
+                            <button type="button" onClick={() => setForm(f => ({ ...f, uni70Count: f.uni70Count + 1 }))} className="grid h-12 w-12 place-items-center rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 active:scale-95">+</button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {!isSottosuolo && (
-                  <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-6">
-                    <div>
-                      <span className="block text-base font-semibold text-slate-800 mb-3">Tappi (Ciechi)</span>
-                      <div className="flex flex-col gap-3">
-                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
-                          <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "OK"} onChange={() => setForm({ ...form, caps_status: "OK", missingCaps: 0 })} />
-                          ✓ TUTTI PRESENTI E INTEGRI
-                        </label>
-                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
-                          <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "KO"} onChange={() => setForm({ ...form, caps_status: "KO", missingCaps: form.missingCaps || 1 })} />
-                          ❌ MANCANTI / DANNEGGIATI
-                        </label>
-                      </div>
-                      {form.caps_status === "KO" && (
-                        <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
-                          <span className="font-semibold text-rose-800">Quanti tappi mancano?</span>
-                          <div className="flex gap-2">
-                            {[1, 2, 3].map(num => (
-                              <button key={num} type="button" onClick={() => setForm({ ...form, missingCaps: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingCaps === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
-                            ))}
-                          </div>
+                    <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-6">
+                      <div>
+                        <span className="block text-base font-semibold text-slate-800 mb-3">Tappi (Ciechi)</span>
+                        <div className="flex flex-col gap-3">
+                          <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
+                            <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "OK"} onChange={() => setForm({ ...form, caps_status: "OK", missingCaps: 0 })} />
+                            ✓ TUTTI PRESENTI E INTEGRI
+                          </label>
+                          <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
+                            <input type="radio" name="caps_status" className="hidden" checked={form.caps_status === "KO"} onChange={() => setForm({ ...form, caps_status: "KO", missingCaps: form.missingCaps || 1 })} />
+                            ❌ MANCANTI / DANNEGGIATI
+                          </label>
                         </div>
-                      )}
+                        {form.caps_status === "KO" && (
+                          <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
+                            <span className="font-semibold text-rose-800">Quanti tappi mancano?</span>
+                            <div className="flex gap-2">
+                              {[1, 2, 3].map(num => (
+                                <button key={num} type="button" onClick={() => setForm({ ...form, missingCaps: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingCaps === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-slate-200 pt-4">
+                        <span className="block text-base font-semibold text-slate-800 mb-3">Catenelle</span>
+                        <div className="flex flex-col gap-3">
+                          <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
+                            <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "OK"} onChange={() => setForm({ ...form, chains_status: "OK", missingChains: 0 })} />
+                            ✓ TUTTE PRESENTI E INTEGRE
+                          </label>
+                          <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
+                            <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "KO"} onChange={() => setForm({ ...form, chains_status: "KO", missingChains: form.missingChains || 1 })} />
+                            ❌ MANCANTI / ROTTE
+                          </label>
+                        </div>
+                        {form.chains_status === "KO" && (
+                          <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
+                            <span className="font-semibold text-rose-800">Quante catenelle rotte?</span>
+                            <div className="flex gap-2">
+                              {[1, 2, 3].map(num => (
+                                <button key={num} type="button" onClick={() => setForm({ ...form, missingChains: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingChains === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="border-t border-slate-200 pt-4">
-                      <span className="block text-base font-semibold text-slate-800 mb-3">Catenelle</span>
-                      <div className="flex flex-col gap-3">
-                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-emerald-400 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-700">
-                          <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "OK"} onChange={() => setForm({ ...form, chains_status: "OK", missingChains: 0 })} />
-                          ✓ TUTTE PRESENTI E INTEGRE
+                    <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4">
+                      <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
+                        🧢 Cappello Colonna Idrante
+                      </span>
+                      
+                      <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+                          <input
+                            type="radio"
+                            name="cappellotto_status"
+                            checked={form.cappellotto_status === "integro"}
+                            onChange={() => setForm({ ...form, cappellotto_status: "integro" })}
+                            className="hidden"
+                          />
+                          Presente e integro
                         </label>
-                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-white p-4 text-base font-bold text-slate-700 transition hover:border-rose-400 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:text-rose-700">
-                          <input type="radio" name="chains_status" className="hidden" checked={form.chains_status === "KO"} onChange={() => setForm({ ...form, chains_status: "KO", missingChains: form.missingChains || 1 })} />
-                          ❌ MANCANTI / ROTTE
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
+                          <input
+                            type="radio"
+                            name="cappellotto_status"
+                            checked={form.cappellotto_status === "mancante"}
+                            onChange={() => setForm({ ...form, cappellotto_status: "mancante" })}
+                            className="hidden"
+                          />
+                          Mancante
+                        </label>
+                        <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-amber-400 has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50 has-[:checked]:text-amber-700">
+                          <input
+                            type="radio"
+                            name="cappellotto_status"
+                            checked={form.cappellotto_status === "danneggiato"}
+                            onChange={() => setForm({ ...form, cappellotto_status: "danneggiato" })}
+                            className="hidden"
+                          />
+                          Staccato / Danneggiato
                         </label>
                       </div>
-                      {form.chains_status === "KO" && (
-                        <div className="mt-4 flex items-center justify-between bg-rose-50 p-4 rounded-xl border border-rose-200 animate-in fade-in slide-in-from-top-2">
-                          <span className="font-semibold text-rose-800">Quante catenelle rotte?</span>
-                          <div className="flex gap-2">
-                            {[1, 2, 3].map(num => (
-                              <button key={num} type="button" onClick={() => setForm({ ...form, missingChains: num })} className={`h-12 w-12 rounded-lg font-bold text-lg transition-colors ${form.missingChains === num ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>{num}</button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1377,47 +1419,6 @@ export default function HydrantMap() {
                     </div>
                   )}
                 </div>
-
-                {!isSottosuolo && (
-                  <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4 mt-4">
-                    <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
-                      🧢 Cappello Colonna Idrante
-                    </span>
-                    
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
-                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
-                        <input
-                          type="radio"
-                          name="cappellotto_status"
-                          checked={form.cappellotto_status === "integro"}
-                          onChange={() => setForm({ ...form, cappellotto_status: "integro" })}
-                          className="hidden"
-                        />
-                        Presente e integro
-                      </label>
-                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-red-400 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:checked]:text-red-700">
-                        <input
-                          type="radio"
-                          name="cappellotto_status"
-                          checked={form.cappellotto_status === "mancante"}
-                          onChange={() => setForm({ ...form, cappellotto_status: "mancante" })}
-                          className="hidden"
-                        />
-                        Mancante
-                      </label>
-                      <label className="flex w-full items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700 transition hover:border-amber-400 has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50 has-[:checked]:text-amber-700">
-                        <input
-                          type="radio"
-                          name="cappellotto_status"
-                          checked={form.cappellotto_status === "danneggiato"}
-                          onChange={() => setForm({ ...form, cappellotto_status: "danneggiato" })}
-                          className="hidden"
-                        />
-                        Staccato / Danneggiato
-                      </label>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1464,7 +1465,7 @@ export default function HydrantMap() {
                   </div>
                 </div>
                 
-                {!isSottosuolo && (
+                {form.type?.toUpperCase() !== "SOTTOSUOLO" && (
                   <div>
                     <label className="mb-3 block text-base font-bold text-slate-800">Da Verniciare?</label>
                     <div className="flex items-center gap-6">
