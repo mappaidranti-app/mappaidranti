@@ -569,7 +569,8 @@ export default function HydrantMap() {
       setMessage("Salvataggio scheda tecnica nel database...");
 
       // 2. Salvataggio record idrante
-      const isSottosuolo = form.type?.toUpperCase() === "SOTTOSUOLO";
+      const isSottosuolo = String(form.type || "").trim().toLowerCase() === "sottosuolo";
+      console.log("[IDRANTYA] handleSubmit - form.type:", JSON.stringify(form.type), "| isSottosuolo:", isSottosuolo);
       let calculatedDn = "";
       if (!isSottosuolo) {
         if (form.uni45Count > 0) calculatedDn += `UNI 45 (${form.uni45Count}) `;
@@ -646,7 +647,8 @@ export default function HydrantMap() {
       }, 4000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : JSON.stringify(error);
-      console.error("[IDRANTYA] Errore fatale handleSubmit:", msg);
+      console.error("[IDRANTYA] Errore salvataggio Supabase:", error);
+      console.error("[IDRANTYA] Messaggio errore:", msg);
       // Alert visibile su mobile per debug immediato
       alert("❌ Errore durante il salvataggio:\n\n" + msg);
       setMessage("Salvataggio non riuscito: " + msg);
@@ -764,7 +766,9 @@ export default function HydrantMap() {
     findClosestHydrants(newFilter);
   }
 
-  const isSottosuolo = form.type?.toUpperCase() === "SOTTOSUOLO";
+  const isSottosuolo = String(form.type || "").trim().toLowerCase() === "sottosuolo";
+  // DEBUG: stampa il valore esatto di form.type ad ogni render per diagnosticare la tipologia
+  console.log("[IDRANTYA] form.type =", JSON.stringify(form.type), "| isSottosuolo =", isSottosuolo);
 
   return (
     <main className="relative flex-1 w-full flex flex-col overflow-hidden bg-slate-50 text-slate-950">
@@ -1198,7 +1202,7 @@ export default function HydrantMap() {
 
               {/* Attacchi UNI (DN) e Accessori Mappa */}
               <div className="space-y-4">
-                {form.type?.toUpperCase() !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div className="space-y-4">
                     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
                       <span className="block text-base font-semibold text-slate-800">Attacchi UNI</span>
@@ -1465,7 +1469,7 @@ export default function HydrantMap() {
                   </div>
                 </div>
                 
-                {form.type?.toUpperCase() !== "SOTTOSUOLO" && (
+                {!isSottosuolo && (
                   <div>
                     <label className="mb-3 block text-base font-bold text-slate-800">Da Verniciare?</label>
                     <div className="flex items-center gap-6">
