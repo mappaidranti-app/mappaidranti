@@ -22,6 +22,15 @@ export default function Home() {
 
   useEffect(() => {
     async function checkAuth() {
+      // Controlla se l'utente è un visitatore
+      try {
+        const visitorRole = window.localStorage.getItem("userRole");
+        if (visitorRole === "visitor") {
+          setIsAuthenticated(true);
+          return;
+        }
+      } catch (e) {}
+
       // Controlla se l'operatore è autenticato via localStorage (login Telefono+PIN)
       try {
         const opData = window.localStorage.getItem("operatorData");
@@ -53,6 +62,10 @@ export default function Home() {
 
     const { data: authListener } = supabase?.auth.onAuthStateChange(
       (event, session) => {
+        // Non reindirizzare al login se l'utente è visitatore
+        const visitorRole = window.localStorage.getItem("userRole");
+        if (visitorRole === "visitor") return;
+
         // Non reindirizzare al login se l'operatore è autenticato via localStorage
         const opData = window.localStorage.getItem("operatorData");
         if (opData) return;
