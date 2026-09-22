@@ -230,6 +230,20 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <div className="mt-6 pt-6 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem("userRole", "visitor");
+                router.replace("/");
+              }}
+              className="w-full font-bold py-4 px-4 rounded-xl border-2 border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
+            >
+              <span className="text-xl">🗺️</span>
+              <span>CONSULTA MAPPA</span>
+            </button>
+          </div>
+
           <div className="mt-8 flex flex-col items-center gap-4">
             <InstallPwaButton />
             <p className="text-center text-xs font-semibold text-slate-400">

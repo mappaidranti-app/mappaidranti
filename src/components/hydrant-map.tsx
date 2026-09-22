@@ -292,15 +292,22 @@ export default function HydrantMap() {
       let loadedMunicipalityId = null;
 
       try {
-        const opStr = window.localStorage.getItem("operatorData");
-        if (opStr) {
-          const op = JSON.parse(opStr);
-          if (op.municipality_id) {
-            loadedMunicipalityId = op.municipality_id;
-            setMunicipalityId(loadedMunicipalityId);
-            setIsAdmin(false);
-            // Gli operatori locali (localStorage) possono modificare gli idranti
-            setCanEdit(true);
+        const userRoleLocal = window.localStorage.getItem("userRole");
+        if (userRoleLocal === "visitor") {
+          setIsAdmin(false);
+          setCanEdit(false);
+          setIsReadOnly(true);
+        } else {
+          const opStr = window.localStorage.getItem("operatorData");
+          if (opStr) {
+            const op = JSON.parse(opStr);
+            if (op.municipality_id) {
+              loadedMunicipalityId = op.municipality_id;
+              setMunicipalityId(loadedMunicipalityId);
+              setIsAdmin(false);
+              // Gli operatori locali (localStorage) possono modificare gli idranti
+              setCanEdit(true);
+            }
           }
         }
       } catch(e) {}
@@ -1776,11 +1783,10 @@ export default function HydrantMap() {
       </aside>
       )} {/* fine !isReadOnly */}
 
-      {/* ── PULSANTE NUOVO IDRANTE — Grande e ben visibile ── */}
+      {/* ── PULSANTE NUOVO IDRANTE — Grande e ben visibile (Editor) ── */}
       {canEdit && !isReadOnly && !draftPosition && (
         <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
           <div className="relative pointer-events-auto">
-            {/* Alone pulsante per attirare l'attenzione */}
             <span className="absolute inset-0 rounded-full animate-ping bg-blue-500/30" />
             <button
               type="button"
@@ -1789,6 +1795,23 @@ export default function HydrantMap() {
             >
               <MapPinPlus size={28} aria-hidden="true" />
               NUOVO IDRANTE
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PULSANTE RICERCA IDRANTI (Solo Visitatore / VVFF) ── */}
+      {isReadOnly && !draftPosition && (
+        <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
+          <div className="relative pointer-events-auto">
+            <span className="absolute inset-0 rounded-full animate-ping bg-slate-500/30" />
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              className="relative flex w-full min-w-[260px] max-w-xs items-center justify-center gap-3 rounded-full bg-gradient-to-r from-slate-700 to-slate-900 py-5 px-8 text-xl font-black tracking-wide text-white shadow-[0_12px_50px_rgba(15,23,42,0.5)] transition-transform hover:scale-[1.03] active:scale-95 border-[3px] border-white/30"
+            >
+              <Search size={28} aria-hidden="true" />
+              RICERCA IDRANTI
             </button>
           </div>
         </div>

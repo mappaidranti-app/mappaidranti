@@ -10,17 +10,28 @@ export function TopMenu() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isReferent, setIsReferent] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isVisitor, setIsVisitor] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     async function checkAuth() {
+      const userRole = localStorage.getItem("userRole");
+      if (userRole === "visitor") {
+        setIsVisitor(true);
+        setIsAuthenticated(true);
+        setIsReferent(false);
+        setIsSuperAdmin(false);
+        return;
+      }
+
       // Check localStorage for Operator session
       const operatorData = localStorage.getItem("operatorData");
       if (operatorData) {
         setIsAuthenticated(true);
         setIsReferent(false);
         setIsSuperAdmin(false);
+        setIsVisitor(false);
         return;
       }
 
@@ -28,6 +39,7 @@ export function TopMenu() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
+        setIsVisitor(false);
         // Check role securely via Server Action
         const { role } = await getUserRole(session.user.id);
         if (role === "referent") {
@@ -39,6 +51,7 @@ export function TopMenu() {
         setIsAuthenticated(false);
         setIsReferent(false);
         setIsSuperAdmin(false);
+        setIsVisitor(false);
       }
     }
 
@@ -51,10 +64,11 @@ export function TopMenu() {
           checkAuth(); // Re-check role on login
         } else {
           // Verify if operator is still logged in before setting false
-          if (!localStorage.getItem("operatorData")) {
+          if (!localStorage.getItem("operatorData") && localStorage.getItem("userRole") !== "visitor") {
             setIsAuthenticated(false);
             setIsReferent(false);
             setIsSuperAdmin(false);
+            setIsVisitor(false);
           }
         }
       }
@@ -66,8 +80,9 @@ export function TopMenu() {
   }, []);
 
   const handleLogout = async () => {
-    // Clear operator local session
+    // Clear local sessions
     localStorage.removeItem("operatorData");
+    localStorage.removeItem("userRole");
     
     if (supabase) {
       await supabase.auth.signOut();
@@ -76,6 +91,7 @@ export function TopMenu() {
     setIsAuthenticated(false);
     setIsReferent(false);
     setIsSuperAdmin(false);
+    setIsVisitor(false);
     router.push("/login");
   };
 
@@ -88,6 +104,11 @@ export function TopMenu() {
 
   return (
     <nav className="flex items-center space-x-4">
+      {isVisitor && (
+        <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-md">
+          Modalità Visitatore
+        </span>
+      )}
       <Link 
         href="/"
         className={`text-sm font-medium transition-colors ${
@@ -112,7 +133,7 @@ export function TopMenu() {
         onClick={handleLogout}
         className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-800 font-bold ml-4 border-l border-gray-200 pl-4 transition-colors"
       >
-        🚪 Logout
+        {isVisitor ? "🚪 Esci (Login)" : "🚪 Logout"}
       </button>
     </nav>
   );
