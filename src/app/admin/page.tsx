@@ -17,14 +17,19 @@ export default function AdminEnteDashboard() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  const [searchComune, setSearchComune] = useState("");
+  const [searchVia, setSearchVia] = useState("");
+  const [searchProvincia, setSearchProvincia] = useState("");
+  const [searchTipologia, setSearchTipologia] = useState("all");
+
   const fetchHydrants = useCallback(async (munId: string | null) => {
     if (!supabase) {
       setLoading(false);
       return;
     }
-    let query = supabase.from("hydrants").select("*").order("created_at", { ascending: false });
+    // Proviamo a estrarre anche il nome del comune se possibile
+    let query = supabase.from("hydrants").select("*, municipalities(name)").order("created_at", { ascending: false });
     
-    // If Admin Ente, filter by their municipality
     if (munId) {
       query = query.eq("municipality_id", munId);
     }
@@ -50,7 +55,6 @@ export default function AdminEnteDashboard() {
           
         if (profile) {
           setUserRole(profile.role);
-          // admin_ente e referent vedono solo il proprio Comune; superadmin vede tutto
           const munScopedRoles = ["referent", "admin_ente"];
           const mId = munScopedRoles.includes(profile.role) ? profile.municipality_id : null;
           setMunicipalityId(mId);
@@ -69,10 +73,37 @@ export default function AdminEnteDashboard() {
   }, [fetchHydrants]);
 
   const filteredHydrants = hydrants.filter(h => {
-    if (filter === "all") return true;
-    if (filter === "broken") return h.status === "Non funzionante";
-    if (filter === "missing_parts") return h.caps_present === false || h.chains_present === false;
-    if (filter === "maintenance") return h.pit_status === "bloccato" || h.pit_status === "non_ispezionabile" || h.needs_painting === true;
+    // Basic status filters
+    if (filter === "broken" && h.status !== "Non funzionante") return false;
+    if (filter === "missing_parts" && h.caps_present !== false && h.chains_present !== false) return false;
+    if (filter === "maintenance" && h.pit_status !== "bloccato" && h.pit_status !== "non_ispezionabile" && h.needs_painting !== true) return false;
+    
+    // Advanced search filters
+    if (searchVia && !(h.street || "").toLowerCase().includes(searchVia.toLowerCase())) return false;
+    
+    if (searchTipologia !== "all") {
+      const typeStr = String(h.type || "").trim().toLowerCase();
+      const isSottosuolo = typeStr === "sottosuolo";
+      if (searchTipologia === "colonna" && isSottosuolo) return false;
+      if (searchTipologia === "sottosuolo" && !isSottosuolo) return false;
+    }
+
+    if (searchComune) {
+      const munName = (h as any).municipalities?.name?.toLowerCase() || "";
+      const streetLower = (h.street || "").toLowerCase();
+      if (!munName.includes(searchComune.toLowerCase()) && !streetLower.includes(searchComune.toLowerCase())) {
+        return false;
+      }
+    }
+
+    if (searchProvincia) {
+      const streetLower = (h.street || "").toLowerCase();
+      const notesLower = (h.notes || "").toLowerCase();
+      if (!streetLower.includes(searchProvincia.toLowerCase()) && !notesLower.includes(searchProvincia.toLowerCase())) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -131,6 +162,56 @@ export default function AdminEnteDashboard() {
           <Download size={20} />
           ESPORTA CSV
         </button>
+      </div>
+
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+          🔍 Ricerca Avanzata
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Comune</label>
+            <input 
+              type="text" 
+              value={searchComune}
+              onChange={e => setSearchComune(e.target.value)}
+              placeholder="Es. Milano..."
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Via / Indirizzo</label>
+            <input 
+              type="text" 
+              value={searchVia}
+              onChange={e => setSearchVia(e.target.value)}
+              placeholder="Es. Via Roma..."
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Provincia</label>
+            <input 
+              type="text" 
+              value={searchProvincia}
+              onChange={e => setSearchProvincia(e.target.value)}
+              placeholder="Es. MI..."
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tipologia</label>
+            <select
+              value={searchTipologia}
+              onChange={e => setSearchTipologia(e.target.value)}
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+            >
+              <option value="all">Tutte le Tipologie</option>
+              <option value="colonna">Soprasuolo / A Colonna</option>
+              <option value="sottosuolo">Sottosuolo</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
