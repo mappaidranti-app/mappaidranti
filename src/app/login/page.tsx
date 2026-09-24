@@ -36,8 +36,20 @@ export default function LoginPage() {
           return;
         }
 
-        if (res.success && res.operator) {
-          // Salva in localStorage per la sessione della mappa
+        if (res.success && res.tokenHash && supabase) {
+          // Scambia il token monouso con una vera sessione Supabase:
+          // da qui in poi le policy RLS riconoscono l'operatore e il suo comune.
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            token_hash: res.tokenHash,
+            type: "email",
+          });
+          if (otpError) {
+            setErrorMsg("Impossibile avviare la sessione: " + otpError.message);
+            setLoading(false);
+            return;
+          }
+          localStorage.removeItem("userRole");
+          // Solo per visualizzazione (nome operatore), NON usato per i permessi
           localStorage.setItem("operatorData", JSON.stringify(res.operator));
           router.replace("/");
         }
@@ -59,8 +71,6 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      const DEV_EMAIL = "mappaidranti@gmail.com";
-      
       try {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -70,11 +80,6 @@ export default function LoginPage() {
 
         if (profileError) {
           console.error("Errore recupero profilo:", profileError);
-          // Fallback per email sviluppatore
-          if (data.user.email === DEV_EMAIL) {
-            router.replace("/admin/superadmin");
-            return;
-          }
           router.replace("/");
           return;
         }
@@ -90,10 +95,6 @@ export default function LoginPage() {
         }
       } catch (err) {
         console.error("Errore recupero profilo (eccezione):", err);
-        if (data.user.email === DEV_EMAIL) {
-          router.replace("/admin/superadmin");
-          return;
-        }
         router.replace("/");
       }
     } else {

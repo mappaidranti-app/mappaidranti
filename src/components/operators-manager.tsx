@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getOperatorsByMunicipality, createOperator, toggleOperatorStatus, deleteOperator } from "@/app/admin/actions";
 import type { Operator } from "@/types";
+import { getAccessToken } from "@/lib/supabase";
 import { Trash2, UserPlus, Power, PowerOff } from "lucide-react";
 
 type Municipality = {
@@ -37,7 +38,7 @@ export default function OperatorsManager({
 
   const loadOperators = async (munId: string) => {
     setLoading(true);
-    const res = await getOperatorsByMunicipality(munId);
+    const res = await getOperatorsByMunicipality((await getAccessToken()) ?? "", munId);
     if (res.operators) {
       setOperators(res.operators as Operator[]);
     }
@@ -63,7 +64,7 @@ export default function OperatorsManager({
     formData.append("name", name);
     formData.append("phone", phone);
     formData.append("pin", pin);
-    formData.append("referentId", referentId);
+    formData.append("accessToken", (await getAccessToken()) ?? "");
     
     const res = await createOperator(formData);
     if (res.error) {
@@ -79,7 +80,7 @@ export default function OperatorsManager({
   };
 
   const handleToggle = async (operatorId: string, currentStatus: boolean) => {
-    const res = await toggleOperatorStatus(operatorId, !currentStatus);
+    const res = await toggleOperatorStatus((await getAccessToken()) ?? "", operatorId, !currentStatus);
     if (res.error) {
       alert("Errore: " + res.error);
     } else {
@@ -90,7 +91,7 @@ export default function OperatorsManager({
   const handleDelete = async (operatorId: string) => {
     if (!confirm("Sei sicuro di voler eliminare questo operatore?")) return;
     
-    const res = await deleteOperator(operatorId, referentId);
+    const res = await deleteOperator((await getAccessToken()) ?? "", operatorId);
     if (res.error) {
       alert("Errore: " + res.error);
     } else {

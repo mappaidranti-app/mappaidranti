@@ -297,19 +297,9 @@ export default function HydrantMap() {
           setIsAdmin(false);
           setCanEdit(false);
           setIsReadOnly(true);
-        } else {
-          const opStr = window.localStorage.getItem("operatorData");
-          if (opStr) {
-            const op = JSON.parse(opStr);
-            if (op.municipality_id) {
-              loadedMunicipalityId = op.municipality_id;
-              setMunicipalityId(loadedMunicipalityId);
-              setIsAdmin(false);
-              // Gli operatori locali (localStorage) possono modificare gli idranti
-              setCanEdit(true);
-            }
-          }
         }
+        // Gli operatori di campo hanno ora una vera sessione Supabase:
+        // ruolo e comune vengono letti dal profilo qui sotto.
       } catch(e) {}
 
       if (!loadedMunicipalityId) {

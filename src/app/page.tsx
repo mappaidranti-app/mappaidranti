@@ -31,19 +31,7 @@ export default function Home() {
         }
       } catch (e) {}
 
-      // Controlla se l'operatore è autenticato via localStorage (login Telefono+PIN)
-      try {
-        const opData = window.localStorage.getItem("operatorData");
-        if (opData) {
-          const op = JSON.parse(opData);
-          if (op?.id && op?.municipality_id) {
-            setIsAuthenticated(true);
-            return;
-          }
-        }
-      } catch (e) { /* ignore parse errors */ }
-
-      // Fallback: controlla sessione Supabase Auth (admin/referent)
+      // Sessione Supabase Auth (admin, referenti e operatori di campo)
       if (!supabase) {
         setIsAuthenticated(false);
         router.replace("/login");
@@ -65,10 +53,6 @@ export default function Home() {
         // Non reindirizzare al login se l'utente è visitatore
         const visitorRole = window.localStorage.getItem("userRole");
         if (visitorRole === "visitor") return;
-
-        // Non reindirizzare al login se l'operatore è autenticato via localStorage
-        const opData = window.localStorage.getItem("operatorData");
-        if (opData) return;
 
         if (!session) {
           router.replace("/login");

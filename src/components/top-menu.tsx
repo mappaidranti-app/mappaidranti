@@ -25,23 +25,13 @@ export function TopMenu() {
         return;
       }
 
-      // Check localStorage for Operator session
-      const operatorData = localStorage.getItem("operatorData");
-      if (operatorData) {
-        setIsAuthenticated(true);
-        setIsReferent(false);
-        setIsSuperAdmin(false);
-        setIsVisitor(false);
-        return;
-      }
-
       if (!supabase) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
         setIsVisitor(false);
         // Check role securely via Server Action
-        const { role } = await getUserRole(session.user.id);
+        const { role } = await getUserRole(session.access_token);
         if (role === "referent") {
           setIsReferent(true);
         } else if (role === "superadmin") {
@@ -64,7 +54,7 @@ export function TopMenu() {
           checkAuth(); // Re-check role on login
         } else {
           // Verify if operator is still logged in before setting false
-          if (!localStorage.getItem("operatorData") && localStorage.getItem("userRole") !== "visitor") {
+          if (localStorage.getItem("userRole") !== "visitor") {
             setIsAuthenticated(false);
             setIsReferent(false);
             setIsSuperAdmin(false);

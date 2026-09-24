@@ -8,3 +8,13 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl as string, supabaseAnonKey as string)
   : null;
+
+/**
+ * Token di accesso della sessione corrente, da passare alle server action:
+ * il server ricava da qui l'identità dell'utente (non si fida di ID passati dal client).
+ */
+export async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}

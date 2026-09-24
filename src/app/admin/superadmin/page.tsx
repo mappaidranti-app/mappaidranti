@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase, getAccessToken } from "@/lib/supabase";
 import {
   createMunicipalityAndAdmin,
   getDashboardData,
@@ -68,6 +68,7 @@ function CreateMunicipalityForm({
       fd.append("adminFullName", adminFullName.trim());
       fd.append("adminEmail", adminEmail.trim());
       fd.append("adminPassword", adminPassword);
+      fd.append("accessToken", (await getAccessToken()) ?? "");
 
       const result = await createMunicipalityAndAdmin(fd);
 
@@ -227,7 +228,7 @@ export default function SuperAdminPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      const result = await getDashboardData(session.user.id);
+      const result = await getDashboardData(session.access_token);
       if (result.isSuperAdmin) {
         setMunicipalities((result.municipalities as Municipality[]) || []);
         setReferentId(session.user.id);
@@ -255,6 +256,7 @@ export default function SuperAdminPage() {
 
     const fd = new FormData();
     fd.append("municipalityId", editingMun.id);
+    fd.append("accessToken", (await getAccessToken()) ?? "");
     fd.append("municipalityName", editName.trim());
     fd.append("adminFullName", editAdminName.trim());
     fd.append("adminEmail", editAdminEmail.trim());
@@ -292,6 +294,7 @@ export default function SuperAdminPage() {
 
     const fd = new FormData();
     fd.append("municipalityId", deletingMun.id);
+    fd.append("accessToken", (await getAccessToken()) ?? "");
     
     const res = await deleteMunicipalityAndAdmin(fd);
     setIsDeleting(false);

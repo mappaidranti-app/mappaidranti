@@ -5,16 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
-import { upgradeToSuperAdmin } from "./actions";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isUpgrading, setIsUpgrading] = useState(false);
   const router = useRouter();
-
-  const DEV_EMAIL = "mappaidranti@gmail.com";
 
   const checkAuth = async () => {
     if (!supabase) return;
@@ -25,8 +20,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    setUserId(session.user.id);
-
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -36,14 +29,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       if (error) {
         console.error("Errore recupero profilo:", error);
-        // Fallback: controlla se è l'email sviluppatore
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email === DEV_EMAIL) {
-          console.warn("Fallback attivo: accesso dev concesso a", DEV_EMAIL);
-          setRole("superadmin");
-          setIsAuthorized(true);
-          return;
-        }
         setIsAuthorized(false);
         return;
       }
@@ -56,14 +41,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     } catch (err) {
       console.error("Errore recupero profilo (eccezione):", err);
-      // Fallback: controlla se è l'email sviluppatore
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email === DEV_EMAIL) {
-        console.warn("Fallback attivo (catch): accesso dev concesso a", DEV_EMAIL);
-        setRole("superadmin");
-        setIsAuthorized(true);
-        return;
-      }
       setIsAuthorized(false);
     }
   };
@@ -71,19 +48,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     checkAuth();
   }, [router]);
-
-  const handleUpgrade = async () => {
-    if (!userId) return;
-    setIsUpgrading(true);
-    const res = await upgradeToSuperAdmin(userId);
-    if (res.success) {
-      await checkAuth(); // Re-check authorization
-      router.push("/admin/superadmin");
-    } else {
-      alert("Errore durante l'aggiornamento del ruolo: " + res.error);
-    }
-    setIsUpgrading(false);
-  };
 
   if (isAuthorized === null) {
     return (
@@ -110,21 +74,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               Torna alla Mappa
             </button>
-            
-            <div className="pt-4 mt-4 border-t border-slate-100">
-              <p className="text-xs text-slate-400 font-medium mb-3 uppercase tracking-wider">Opzioni Sviluppatore</p>
-              <button 
-                onClick={handleUpgrade}
-                disabled={isUpgrading}
-                className="w-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 py-3 px-4 rounded-xl hover:bg-emerald-100 hover:border-emerald-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isUpgrading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-700"></div>
-                ) : (
-                  <span>🛠️ Abilita come Super Admin</span>
-                )}
-              </button>
-            </div>
           </div>
         </div>
       </div>

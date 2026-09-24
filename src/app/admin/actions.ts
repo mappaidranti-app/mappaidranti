@@ -4,32 +4,86 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://dummy.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "dummy-key-for-build";
 
-// Client standard (no auth) per operazioni di amministrazione
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Client con Service Role Key: bypassa RLS. Usarlo SOLO dopo aver verificato il chiamante.
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+/** Dominio fittizio per le utenze Auth tecniche degli operatori (nessuna email viene mai inviata). */
+const OPERATOR_EMAIL_DOMAIN = "operatori.idrantya.invalid";
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 15;
+/** ~100 anni: equivale a "disabilitato" finché non viene riattivato. */
+const BAN_FOREVER = "876000h";
+/** Hash fittizio: rende uguale il tempo di risposta anche se il telefono non esiste. */
+const DUMMY_PIN_HASH = bcrypt.hashSync("dummy-pin", 10);
+
+// ---------------------------------------------------------------------------
+// Verifica del chiamante
+// ---------------------------------------------------------------------------
+
+type Caller = {
+  userId: string;
+  role: string | null;
+  municipalityId: string | null;
+  /** superadmin, oppure referent senza comune (convenzione storica del progetto) */
+  isSuperAdmin: boolean;
+  /** può gestire comune/operatori (superadmin, referent, admin_ente) */
+  isAdmin: boolean;
+};
+
+const ADMIN_ROLES = ["referent", "superadmin", "admin_ente"];
 
 /**
- * Ottiene il ruolo dell'utente bypassando RLS, usando l'ID utente passato dal client.
+ * Ricava l'utente dal token di sessione Supabase (JWT) inviato dal client.
+ * Non si fida MAI di un userId passato dal browser.
  */
-export async function getUserRole(userId: string) {
-  if (!userId) return { role: null };
+async function getCaller(accessToken: string | null | undefined): Promise<Caller | null> {
+  if (!accessToken) return null;
 
+  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+  if (error || !data?.user) return null;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role, municipality_id")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  const role = profile?.role ?? null;
+  const municipalityId = profile?.municipality_id ?? null;
+  const isSuperAdmin = role === "superadmin" || (role === "referent" && !municipalityId);
+
+  return {
+    userId: data.user.id,
+    role,
+    municipalityId,
+    isSuperAdmin,
+    isAdmin: !!role && ADMIN_ROLES.includes(role),
+  };
+}
+
+/** Il chiamante può gestire il comune indicato? */
+function canManageMunicipality(caller: Caller, municipalityId: string | null | undefined) {
+  if (!caller.isAdmin || !municipalityId) return false;
+  return caller.isSuperAdmin || caller.municipalityId === municipalityId;
+}
+
+const NOT_AUTHENTICATED = "Sessione non valida: effettua di nuovo il login.";
+const NOT_AUTHORIZED = "Operazione non autorizzata.";
+
+// ---------------------------------------------------------------------------
+// Ruolo / dashboard
+// ---------------------------------------------------------------------------
+
+/** Ruolo dell'utente autenticato (ricavato dal token, non da un ID passato dal client). */
+export async function getUserRole(accessToken: string) {
   try {
-    const { data: profile, error } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Errore getUserRole:", error.message);
-      return { role: null };
-    }
-
-    return { role: profile?.role || null };
+    const caller = await getCaller(accessToken);
+    return { role: caller?.role ?? null };
   } catch (err) {
     console.error("Eccezione getUserRole:", err);
     return { role: null };
@@ -37,59 +91,22 @@ export async function getUserRole(userId: string) {
 }
 
 /**
- * Funzione di bypass per sviluppatori: aggiorna il ruolo dell'utente corrente a superadmin
+ * Dati per la dashboard. Il superadmin vede tutti i comuni, gli altri admin solo il proprio.
  */
-export async function upgradeToSuperAdmin(userId: string) {
-  if (!userId) return { error: "Non autenticato" };
-
-  const { error } = await supabaseAdmin
-    .from("profiles")
-    .update({ role: "superadmin", municipality_id: null })
-    .eq("id", userId);
-
-  if (error) return { error: error.message };
-  
-  revalidatePath("/admin");
-  return { success: true };
-}
-
-/**
- * Ottiene i dati per la dashboard bypassando RLS.
- * Se l'utente non ha municipality_id è un super-admin: vede tutti i comuni.
- */
-export async function getDashboardData(userId: string) {
-  if (!userId) return { error: "Non autenticato" };
-
+export async function getDashboardData(accessToken: string) {
   try {
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("role, municipality_id")
-      .eq("id", userId)
-      .maybeSingle();
+    const caller = await getCaller(accessToken);
+    if (!caller) return { error: NOT_AUTHENTICATED };
+    if (!caller.isAdmin) return { error: "Non autorizzato o profilo mancante" };
 
-    if (profileErr) {
-      console.error("Errore recupero profilo (gestito):", profileErr.message);
-      return { error: "Errore durante la lettura del profilo" };
-    }
+    const { isSuperAdmin, municipalityId } = caller;
 
-    // Ruoli ammessi al pannello admin
-    const ADMIN_ROLES = ["referent", "superadmin", "admin_ente"];
-    if (!profile || !ADMIN_ROLES.includes(profile.role)) {
-      return { error: "Non autorizzato o profilo mancante" };
-    }
-
-    // superadmin e referent senza municipality_id vedono tutto
-    const isSuperAdmin = profile.role === "superadmin" || profile.role === "referent" && !profile.municipality_id;
-    const municipalityId = profile.municipality_id;
-
-    // Super admin vede tutti i comuni; referente/admin_ente vede solo il suo
     const { data: rawMunicipalities } = isSuperAdmin
       ? await supabaseAdmin.from("municipalities").select("*").order("name")
       : await supabaseAdmin.from("municipalities").select("*").eq("id", municipalityId).limit(1);
 
     const municipalities = rawMunicipalities || [];
 
-    // Recupera anche i profili admin_ente per associarli ai comuni
     if (municipalities.length > 0) {
       const municipalityIds = municipalities.map((m) => m.id);
       const { data: admins } = await supabaseAdmin
@@ -111,223 +128,28 @@ export async function getDashboardData(userId: string) {
 
     const municipality = isSuperAdmin ? null : (municipalities?.[0] || null);
 
-    let operators: { id: string, full_name: string, email: string, created_at: string, municipality_id?: string }[] = [];
-    if (isSuperAdmin) {
-      const { data: ops } = await supabaseAdmin
-        .from("profiles")
-        .select("id, full_name, email, created_at, municipality_id")
-        .eq("role", "operator")
-        .order("created_at", { ascending: false });
-      if (ops) operators = ops;
-    } else if (municipality) {
-      const { data: ops } = await supabaseAdmin
-        .from("profiles")
-        .select("id, full_name, email, created_at, municipality_id")
-        .eq("role", "operator")
-        .eq("municipality_id", municipality.id)
-        .order("created_at", { ascending: false });
-      if (ops) operators = ops;
-    }
-
-    return { isSuperAdmin, municipalities: municipalities || [], municipality, operators, referentId: userId };
+    return { isSuperAdmin, municipalities, municipality, referentId: caller.userId };
   } catch (err: any) {
     console.error("Eccezione in getDashboardData:", err);
     return { error: "Errore imprevisto nel caricamento della dashboard" };
   }
 }
 
-/**
- * Crea un nuovo Comune e il suo Referente (solo super admin).
- */
-const withTimeout = <T>(promise: Promise<T>, ms: number = 8000, errorMsg: string = "Timeout request"): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
-  ]);
-};
-
-export async function createMunicipality(formData: FormData) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
-  }
-
-  try {
-    const municipalityName = formData.get("municipalityName") as string;
-    const province = (formData.get("province") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
-    
-    const ref1Name = (formData.get("ref1Name") as string) || null;
-    const ref1Role = (formData.get("ref1Role") as string) || null;
-    const ref1Phone = (formData.get("ref1Phone") as string) || null;
-    const ref1Email = (formData.get("ref1Email") as string) || null;
-    
-    const ref2Name = (formData.get("ref2Name") as string) || null;
-    const ref2Role = (formData.get("ref2Role") as string) || null;
-    const ref2Phone = (formData.get("ref2Phone") as string) || null;
-    const ref2Email = (formData.get("ref2Email") as string) || null;
-
-    const adminName = formData.get("adminName") as string;
-    const adminEmail = formData.get("adminEmail") as string;
-    const adminPassword = formData.get("adminPassword") as string;
-    
-    const callerUserId = formData.get("callerUserId") as string;
-
-    if (!callerUserId) return { success: false, error: "Utente non autenticato" };
-
-    // Verifica che sia super admin
-    const { data: callerProfile, error: callerErr } = await withTimeout(
-      supabaseAdmin
-        .from("profiles")
-        .select("role, municipality_id")
-        .eq("id", callerUserId)
-        .single(),
-      5000,
-      "Timeout recupero profilo chiamante"
-    );
-
-    if (callerErr) {
-      console.error("Dettaglio errore recupero profilo:", JSON.stringify(callerErr, null, 2));
-      
-      // Fallback di sicurezza: verifichiamo almeno se esiste in Auth. Se no, fermiamo tutto.
-      const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(callerUserId);
-      if (authErr || !authUser?.user) {
-        return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
-      }
-      
-      return { success: false, error: "Impossibile verificare i permessi dell'utente corrente." };
-    }
-
-    if (callerProfile?.role !== "referent" || callerProfile?.municipality_id) {
-      return { success: false, error: "Non autorizzato: solo il super admin può creare comuni" };
-    }
-
-    // Crea il record del comune
-    const { data: newMunicipality, error: munErr } = await withTimeout(
-      supabaseAdmin
-        .from("municipalities")
-        .insert({
-          name: municipalityName,
-          contact_name: adminName,
-          province,
-          notes,
-          ref1_name: ref1Name,
-          ref1_role: ref1Role,
-          ref1_phone: ref1Phone,
-          ref1_email: ref1Email,
-          ref2_name: ref2Name,
-          ref2_role: ref2Role,
-          ref2_phone: ref2Phone,
-          ref2_email: ref2Email
-        })
-        .select()
-        .single(),
-      5000,
-      "Timeout creazione municipality in DB"
-    );
-
-    if (munErr) {
-      console.error("Errore creazione municipality in DB:", munErr);
-      return { success: false, error: munErr.message };
-    }
-
-    // Crea l'utente Supabase per il referente
-    const { data: newUser, error: userErr } = await withTimeout(
-      supabaseAdmin.auth.admin.createUser({
-        email: adminEmail,
-        password: adminPassword,
-        email_confirm: true,
-        phone_confirm: false,
-      }),
-      8000,
-      "Timeout creazione utente Auth"
-    );
-
-    if (userErr) {
-      console.error("Errore creazione utente Auth:", userErr);
-      // Rollback: elimina il comune appena creato
-      await withTimeout(
-        supabaseAdmin.from("municipalities").delete().eq("id", newMunicipality.id),
-        5000,
-        "Timeout rollback municipality"
-      );
-      return { success: false, error: userErr.message };
-    }
-
-    // Crea il profilo del referente (Admin Ente)
-    const { error: profileErr } = await withTimeout(
-      supabaseAdmin.from("profiles").insert({
-        id: newUser.user.id,
-        role: "referent",
-        municipality_id: newMunicipality.id,
-        full_name: adminName,
-        email: adminEmail,
-      }),
-      5000,
-      "Timeout creazione profilo"
-    );
-
-    if (profileErr) {
-      console.error("Errore creazione profile:", profileErr);
-      // Rollback opzionale (utente auth rimane, ma profile no, potrebbe creare disallineamenti)
-      return { success: false, error: profileErr.message };
-    }
-
-    // RIMOSSO TEMPORANEAMENTE PER ISOLARE FLUSSO DATI E PREVENIRE HANG
-    // revalidatePath("/admin/superadmin");
-    
-    return { success: true, municipality: newMunicipality };
-  } catch (err: any) {
-    console.error("Errore catchato in createMunicipality:", err);
-    return { success: false, error: String(err) };
-  }
-}
+// ---------------------------------------------------------------------------
+// Comuni (solo superadmin)
+// ---------------------------------------------------------------------------
 
 /**
- * Crea un nuovo Comune in modo atomico (solo dati Comune, niente Auth).
- * Usa supabaseAdmin con Service Role Key per bypassare RLS.
- */
-export async function createMunicipalitySimple(formData: FormData) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
-  }
-
-  const name = (formData.get("name") as string)?.trim();
-  const province = (formData.get("province") as string)?.trim() || null;
-  const istatCode = (formData.get("istatCode") as string)?.trim() || null;
-
-  if (!name) {
-    return { success: false, error: "Il nome del Comune è obbligatorio." };
-  }
-
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("municipalities")
-      .insert({ name, province })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("createMunicipalitySimple – errore DB:", error);
-      return { success: false, error: error.message };
-    }
-
-    revalidatePath("/admin/superadmin");
-    return { success: true, data };
-  } catch (err: any) {
-    console.error("createMunicipalitySimple – eccezione:", err);
-    return { success: false, error: String(err) };
-  }
-}
-
-/**
- * Crea atomicamente un Comune e il suo Admin Ente in un unico passaggio.
- * Passaggi: 1) crea utente Auth, 2) crea Comune, 3) inserisce/aggiorna profilo.
- * In caso di errore in qualsiasi fase, restituisce un messaggio esplicito.
+ * Crea atomicamente un Comune e il suo Admin Ente (solo superadmin).
  */
 export async function createMunicipalityAndAdmin(formData: FormData) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { success: false, error: "CONFIG ERROR: SUPABASE_SERVICE_ROLE_KEY non trovata nelle env server." };
   }
+
+  const caller = await getCaller(formData.get("accessToken") as string);
+  if (!caller) return { success: false, error: NOT_AUTHENTICATED };
+  if (!caller.isSuperAdmin) return { success: false, error: NOT_AUTHORIZED };
 
   const municipalityName = (formData.get("municipalityName") as string)?.trim();
   const adminFullName = (formData.get("adminFullName") as string)?.trim();
@@ -343,7 +165,6 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
   let newMunicipalityId: string | null = null;
 
   try {
-    // Passaggio 1: crea l'utente Auth
     const { data: newUser, error: userErr } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
@@ -356,7 +177,6 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
     }
     newUserId = newUser.user.id;
 
-    // Passaggio 2: crea il Comune
     const { data: newMunicipality, error: munErr } = await supabaseAdmin
       .from("municipalities")
       .insert({ name: municipalityName, contact_name: adminFullName })
@@ -365,13 +185,11 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
 
     if (munErr || !newMunicipality?.id) {
       console.error("createMunicipalityAndAdmin – errore creazione Comune:", munErr);
-      // Rollback utente Auth
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return { success: false, error: `Errore creazione Comune nel DB: ${munErr?.message ?? "risposta vuota"}` };
     }
     newMunicipalityId = newMunicipality.id;
 
-    // Passaggio 3: inserisce/aggiorna il profilo assegnando il ruolo admin_ente
     const { error: profileErr } = await supabaseAdmin
       .from("profiles")
       .upsert({
@@ -384,7 +202,6 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
 
     if (profileErr) {
       console.error("createMunicipalityAndAdmin – errore upsert profilo:", profileErr);
-      // Rollback: elimina Comune e utente Auth
       await supabaseAdmin.from("municipalities").delete().eq("id", newMunicipalityId);
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return { success: false, error: `Errore salvataggio profilo Admin Ente: ${profileErr.message}` };
@@ -394,7 +211,6 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
     return { success: true, municipality: newMunicipality };
   } catch (err: any) {
     console.error("createMunicipalityAndAdmin – eccezione:", err);
-    // Tentativo di rollback best-effort
     if (newMunicipalityId) await Promise.resolve(supabaseAdmin.from("municipalities").delete().eq("id", newMunicipalityId)).catch(() => {});
     if (newUserId) await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
     return { success: false, error: `Errore imprevisto: ${String(err)}` };
@@ -402,58 +218,56 @@ export async function createMunicipalityAndAdmin(formData: FormData) {
 }
 
 /**
- * Aggiorna i 4 campi base di un Comune e del suo Admin Ente associato.
+ * Aggiorna un Comune e il suo Admin Ente associato (solo superadmin).
  */
 export async function updateMunicipalityAndAdmin(formData: FormData) {
   try {
+    const caller = await getCaller(formData.get("accessToken") as string);
+    if (!caller) return { success: false, error: NOT_AUTHENTICATED };
+    if (!caller.isSuperAdmin) return { success: false, error: NOT_AUTHORIZED };
+
     const municipalityId = formData.get("municipalityId") as string;
     const municipalityName = formData.get("municipalityName") as string;
     const adminFullName = formData.get("adminFullName") as string;
     const adminEmail = formData.get("adminEmail") as string;
-    const adminPassword = formData.get("adminPassword") as string; // Optional
+    const adminPassword = formData.get("adminPassword") as string; // Opzionale
 
     if (!municipalityId || !municipalityName || !adminFullName || !adminEmail) {
       return { success: false, error: "Dati mancanti" };
     }
 
-    // 1. Aggiorna tabella municipalities
     const { error: munErr } = await supabaseAdmin
       .from("municipalities")
       .update({ name: municipalityName, contact_name: adminFullName })
       .eq("id", municipalityId);
-    
+
     if (munErr) {
       return { success: false, error: `Errore aggiornamento Comune: ${munErr.message}` };
     }
 
-    // 2. Trova l'utente Admin Ente associato
-    const { data: adminProfile, error: adminProfileErr } = await supabaseAdmin
+    const { data: adminProfile } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("municipality_id", municipalityId)
       .eq("role", "admin_ente")
-      .single();
+      .maybeSingle();
 
-    if (adminProfile && adminProfile.id) {
+    if (adminProfile?.id) {
       const adminId = adminProfile.id;
 
-      // 3. Aggiorna utente Auth
-      const updateData: any = { email: adminEmail };
+      const updateData: { email: string; password?: string } = { email: adminEmail };
       if (adminPassword && adminPassword.trim().length >= 6) {
         updateData.password = adminPassword;
       }
       const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(adminId, updateData);
-      
       if (authErr) {
         return { success: false, error: `Errore aggiornamento Auth: ${authErr.message}` };
       }
 
-      // 4. Aggiorna profilo
       const { error: profErr } = await supabaseAdmin
         .from("profiles")
         .update({ full_name: adminFullName, email: adminEmail })
         .eq("id", adminId);
-        
       if (profErr) {
         return { success: false, error: `Errore aggiornamento Profilo: ${profErr.message}` };
       }
@@ -468,22 +282,30 @@ export async function updateMunicipalityAndAdmin(formData: FormData) {
 }
 
 /**
- * Elimina un Comune e il suo utente Admin Ente associato.
+ * Elimina un Comune e il suo Admin Ente associato (solo superadmin).
  */
 export async function deleteMunicipalityAndAdmin(formData: FormData) {
   try {
+    const caller = await getCaller(formData.get("accessToken") as string);
+    if (!caller) return { success: false, error: NOT_AUTHENTICATED };
+    if (!caller.isSuperAdmin) return { success: false, error: NOT_AUTHORIZED };
+
     const municipalityId = formData.get("municipalityId") as string;
     if (!municipalityId) return { success: false, error: "ID Comune mancante" };
 
-    // Trova l'utente Admin Ente associato
     const { data: adminProfile } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("municipality_id", municipalityId)
       .eq("role", "admin_ente")
-      .single();
+      .maybeSingle();
 
-    // Elimina il Comune dalla tabella (questo causerà CASCADE su eventuali profili e record correlati se FK sono impostate correttamente)
+    // Utenze Auth tecniche degli operatori del comune (vanno rimosse esplicitamente)
+    const { data: ops } = await supabaseAdmin
+      .from("operators")
+      .select("auth_user_id")
+      .eq("municipality_id", municipalityId);
+
     const { error: munErr } = await supabaseAdmin
       .from("municipalities")
       .delete()
@@ -493,11 +315,11 @@ export async function deleteMunicipalityAndAdmin(formData: FormData) {
       return { success: false, error: `Errore eliminazione Comune: ${munErr.message}` };
     }
 
-    // Se troviamo l'admin, eliminiamo anche da Supabase Auth
-    // Se la FK su profiles a municipalities è ON DELETE CASCADE, il profilo è già rimosso, 
-    // ma l'utente Auth va sempre rimosso esplicitamente.
-    if (adminProfile && adminProfile.id) {
+    if (adminProfile?.id) {
       await supabaseAdmin.auth.admin.deleteUser(adminProfile.id);
+    }
+    for (const op of ops ?? []) {
+      if (op.auth_user_id) await supabaseAdmin.auth.admin.deleteUser(op.auth_user_id).catch(() => {});
     }
 
     revalidatePath("/admin/superadmin");
@@ -508,48 +330,50 @@ export async function deleteMunicipalityAndAdmin(formData: FormData) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Operatori di campo
+// ---------------------------------------------------------------------------
 
+const OPERATOR_PUBLIC_COLUMNS = "id, municipality_id, name, phone, is_active, created_at, updated_at";
 
 /**
- * Crea un nuovo operatore per il comune del referente corrente.
- */
-/**
- * Crea un nuovo operatore di campo nella tabella operators.
+ * Crea un nuovo operatore di campo. Un admin di comune può crearlo solo per il proprio comune.
  */
 export async function createOperator(formData: FormData) {
-  const municipalityId = formData.get("municipality_id") as string;
-  const name = formData.get("name") as string;
-  const phone = formData.get("phone") as string;
-  const pin = formData.get("pin") as string;
-  const referentId = formData.get("referentId") as string;
+  const caller = await getCaller(formData.get("accessToken") as string);
+  if (!caller) return { error: NOT_AUTHENTICATED };
+  if (!caller.isAdmin) return { error: NOT_AUTHORIZED };
 
-  if (!referentId) return { error: "Utente non autenticato" };
+  const requestedMunicipalityId = formData.get("municipality_id") as string;
+  const name = (formData.get("name") as string)?.trim();
+  const phone = (formData.get("phone") as string)?.trim();
+  const pin = (formData.get("pin") as string)?.trim();
 
-  // Verifica autorizzazioni
-  const { data: referentProfile, error: referentErr } = await supabaseAdmin
-    .from("profiles")
-    .select("municipality_id")
-    .eq("id", referentId)
-    .single();
-    
-  if (referentErr) return { error: "Impossibile determinare profilo del chiamante" };
-
-  const isSuperAdmin = !referentProfile?.municipality_id;
-  const targetMunicipalityId = isSuperAdmin ? municipalityId : referentProfile.municipality_id;
-
+  const targetMunicipalityId = caller.isSuperAdmin ? requestedMunicipalityId : caller.municipalityId;
   if (!targetMunicipalityId) return { error: "Comune non valido o mancante" };
+  if (!name || !phone) return { error: "Nome e telefono sono obbligatori" };
+  if (!/^\d{4,6}$/.test(pin || "")) return { error: "Il PIN deve essere di 4-6 cifre." };
 
-  // Hash del PIN
-  const salt = await bcrypt.genSalt(10);
-  const pinHash = await bcrypt.hash(pin, salt);
+  const { data: existing } = await supabaseAdmin
+    .from("operators")
+    .select("id")
+    .eq("phone", phone)
+    .maybeSingle();
+  if (existing) return { error: "Esiste già un operatore con questo numero di telefono" };
 
-  const { data: newOp, error } = await supabaseAdmin.from("operators").insert({
-    municipality_id: targetMunicipalityId,
-    name,
-    phone,
-    pin_hash: pinHash,
-    is_active: true
-  }).select().single();
+  const pinHash = await bcrypt.hash(pin, 10);
+
+  const { data: newOp, error } = await supabaseAdmin
+    .from("operators")
+    .insert({
+      municipality_id: targetMunicipalityId,
+      name,
+      phone,
+      pin_hash: pinHash,
+      is_active: true,
+    })
+    .select(OPERATOR_PUBLIC_COLUMNS)
+    .single();
 
   if (error) return { error: error.message };
 
@@ -558,82 +382,201 @@ export async function createOperator(formData: FormData) {
 }
 
 /**
- * Recupera la lista degli operatori associati a uno specifico Comune.
+ * Lista operatori di un comune (senza pin_hash).
  */
-export async function getOperatorsByMunicipality(municipalityId: string) {
-  if (!municipalityId) return { error: "ID Comune mancante" };
-  
+export async function getOperatorsByMunicipality(accessToken: string, municipalityId: string) {
+  const caller = await getCaller(accessToken);
+  if (!caller) return { error: NOT_AUTHENTICATED };
+  if (!canManageMunicipality(caller, municipalityId)) return { error: NOT_AUTHORIZED };
+
   const { data, error } = await supabaseAdmin
     .from("operators")
-    .select("*")
+    .select(OPERATOR_PUBLIC_COLUMNS)
     .eq("municipality_id", municipalityId)
     .order("created_at", { ascending: false });
-    
+
   if (error) return { error: error.message };
-  
   return { operators: data };
 }
 
+/** Carica un operatore e verifica che il chiamante possa gestirlo. */
+async function loadManagedOperator(caller: Caller, operatorId: string) {
+  const { data: op } = await supabaseAdmin
+    .from("operators")
+    .select("id, municipality_id, auth_user_id")
+    .eq("id", operatorId)
+    .maybeSingle();
+  if (!op) return { error: "Operatore non trovato" as const };
+  if (!canManageMunicipality(caller, op.municipality_id)) return { error: NOT_AUTHORIZED };
+  return { op };
+}
+
 /**
- * Aggiorna lo stato is_active dell'operatore.
+ * Abilita / disabilita un operatore. Se disabilitato, la sua sessione non può più essere rinnovata.
  */
-export async function toggleOperatorStatus(operatorId: string, isActive: boolean) {
+export async function toggleOperatorStatus(accessToken: string, operatorId: string, isActive: boolean) {
+  const caller = await getCaller(accessToken);
+  if (!caller) return { error: NOT_AUTHENTICATED };
   if (!operatorId) return { error: "ID operatore mancante" };
-  
+
+  const res = await loadManagedOperator(caller, operatorId);
+  if ("error" in res) return { error: res.error };
+
   const { error } = await supabaseAdmin
     .from("operators")
-    .update({ is_active: isActive })
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
     .eq("id", operatorId);
-    
   if (error) return { error: error.message };
-  
+
+  if (res.op.auth_user_id) {
+    await supabaseAdmin.auth.admin.updateUserById(res.op.auth_user_id, {
+      ban_duration: isActive ? "none" : BAN_FOREVER,
+    });
+  }
+
   revalidatePath("/admin/superadmin");
   return { success: true };
 }
 
 /**
- * Elimina un operatore.
+ * Elimina un operatore e la sua utenza Auth tecnica.
  */
-export async function deleteOperator(operatorId: string, referentId: string) {
-  if (!referentId) return { error: "Utente non autenticato" };
+export async function deleteOperator(accessToken: string, operatorId: string) {
+  const caller = await getCaller(accessToken);
+  if (!caller) return { error: NOT_AUTHENTICATED };
 
-  const { data: referentProfile, error: refErr } = await supabaseAdmin
-    .from("profiles")
-    .select("municipality_id")
-    .eq("id", referentId)
-    .single();
-  if (refErr) return { error: "Impossibile verificare l'utente chiamante" };
-
-  const isSuperAdmin = !referentProfile?.municipality_id;
-
-  const { data: targetOperator, error: targetErr } = await supabaseAdmin
-    .from("operators")
-    .select("municipality_id")
-    .eq("id", operatorId)
-    .single();
-    
-  if (targetErr) return { error: "Operatore non trovato" };
-
-  if (!isSuperAdmin && targetOperator.municipality_id !== referentProfile.municipality_id) {
-    return { error: "Operazione non autorizzata" };
-  }
+  const res = await loadManagedOperator(caller, operatorId);
+  if ("error" in res) return { error: res.error };
 
   const { error: delOp } = await supabaseAdmin.from("operators").delete().eq("id", operatorId);
   if (delOp) return { error: delOp.message };
 
+  if (res.op.auth_user_id) {
+    await supabaseAdmin.from("profiles").delete().eq("id", res.op.auth_user_id);
+    await supabaseAdmin.auth.admin.deleteUser(res.op.auth_user_id).catch(() => {});
+  }
+
   revalidatePath("/admin/superadmin");
   return { success: true };
 }
 
 /**
- * Login operatore di campo.
+ * Garantisce che l'operatore abbia un'utenza Supabase Auth tecnica e un profilo "operator"
+ * legato al suo comune. Restituisce l'email dell'utenza.
+ */
+async function ensureOperatorAuthUser(operator: {
+  id: string;
+  name: string;
+  municipality_id: string;
+  auth_user_id: string | null;
+}): Promise<{ email: string; userId: string } | { error: string }> {
+  const email = `operatore-${operator.id}@${OPERATOR_EMAIL_DOMAIN}`;
+  let userId = operator.auth_user_id;
+
+  if (userId) {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (error || !data?.user) userId = null; // utenza rimossa: la ricreiamo
+  }
+
+  if (!userId) {
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { operator_id: operator.id, name: operator.name },
+      app_metadata: { role: "operator", operator_id: operator.id },
+    });
+    if (error || !data?.user) {
+      console.error("ensureOperatorAuthUser – createUser:", error);
+      return { error: "Impossibile creare la sessione operatore" };
+    }
+    userId = data.user.id;
+    await supabaseAdmin.from("operators").update({ auth_user_id: userId }).eq("id", operator.id);
+  } else {
+    // Se l'operatore era stato disabilitato e poi riattivato, assicuriamoci che non sia bannato
+    await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
+  }
+
+  // Profilo sempre allineato al comune dell'operatore (usato dalle policy RLS)
+  const { error: profileErr } = await supabaseAdmin.from("profiles").upsert({
+    id: userId,
+    role: "operator",
+    municipality_id: operator.municipality_id,
+    full_name: operator.name,
+    email,
+  });
+  if (profileErr) {
+    console.error("ensureOperatorAuthUser – profilo:", profileErr);
+    return { error: "Impossibile preparare il profilo operatore" };
+  }
+
+  return { email, userId };
+}
+
+/**
+ * Login operatore di campo (telefono + PIN).
+ * Se le credenziali sono valide restituisce un token monouso che il client scambia con
+ * una vera sessione Supabase (supabase.auth.verifyOtp), così le policy RLS si applicano.
  */
 export async function loginOperator(phone: string, pin: string) {
-  if (!phone || !pin) return { error: 'Dati mancanti' };
-  const { data: operator } = await supabaseAdmin.from('operators').select('*').eq('phone', phone).single();
-  if (!operator) return { error: 'Credenziali non valide' };
-  if (!operator.is_active) return { error: 'Utenza disabilitata' };
+  phone = phone?.trim();
+  pin = pin?.trim();
+  if (!phone || !pin) return { error: "Dati mancanti" };
+
+  const { data: operator } = await supabaseAdmin
+    .from("operators")
+    .select("id, name, municipality_id, pin_hash, is_active, auth_user_id, failed_pin_attempts, locked_until")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (!operator) {
+    // Tempo di risposta simile al caso "PIN errato" per non rivelare quali numeri esistono
+    await bcrypt.compare(pin, DUMMY_PIN_HASH);
+    return { error: "Credenziali non valide" };
+  }
+  if (!operator.is_active) return { error: "Utenza disabilitata" };
+
+  if (operator.locked_until && new Date(operator.locked_until) > new Date()) {
+    return { error: `Troppi tentativi errati. Riprova tra qualche minuto.` };
+  }
+
   const isValid = await bcrypt.compare(pin, operator.pin_hash);
-  if (!isValid) return { error: 'Credenziali non valide' };
-  return { success: true, operator: { id: operator.id, municipality_id: operator.municipality_id, name: operator.name } };
+  if (!isValid) {
+    const attempts = (operator.failed_pin_attempts ?? 0) + 1;
+    const lock = attempts >= MAX_PIN_ATTEMPTS;
+    await supabaseAdmin
+      .from("operators")
+      .update({
+        failed_pin_attempts: lock ? 0 : attempts,
+        locked_until: lock ? new Date(Date.now() + PIN_LOCK_MINUTES * 60_000).toISOString() : null,
+      })
+      .eq("id", operator.id);
+    return { error: lock ? `Troppi tentativi errati: accesso bloccato per ${PIN_LOCK_MINUTES} minuti.` : "Credenziali non valide" };
+  }
+
+  if (operator.failed_pin_attempts || operator.locked_until) {
+    await supabaseAdmin
+      .from("operators")
+      .update({ failed_pin_attempts: 0, locked_until: null })
+      .eq("id", operator.id);
+  }
+
+  const authUser = await ensureOperatorAuthUser(operator);
+  if ("error" in authUser) return { error: authUser.error };
+
+  // Nessuna email viene inviata: generateLink restituisce solo il token.
+  const { data: link, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email: authUser.email,
+  });
+  const tokenHash = link?.properties?.hashed_token;
+  if (linkErr || !tokenHash) {
+    console.error("loginOperator – generateLink:", linkErr);
+    return { error: "Impossibile avviare la sessione operatore" };
+  }
+
+  return {
+    success: true,
+    tokenHash,
+    operator: { id: operator.id, municipality_id: operator.municipality_id, name: operator.name },
+  };
 }
