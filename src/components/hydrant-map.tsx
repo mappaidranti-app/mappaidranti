@@ -740,6 +740,7 @@ export default function HydrantMap() {
     if (
       clean.includes("tutti i mezzi") ||
       clean.includes("camion") ||
+      clean.includes("cisterna") ||
       clean.includes("4 assi") ||
       clean.includes("3,5") ||
       clean === "sì" ||
@@ -765,7 +766,8 @@ export default function HydrantMap() {
       return;
     }
 
-    // Filtra per stato idrante (Default: solo Funzionanti)
+    // In modalità VVFF/consultazione: TASSATIVAMENTE solo Funzionanti
+    const effectiveFilter = isReadOnly ? "working" : customFilter;
     const filtered = hydrants.filter((h) => {
       const isWorking =
         h.status === "Funzionante" ||
@@ -776,8 +778,8 @@ export default function HydrantMap() {
         (h.status as string)?.toLowerCase() === "non funzionante" ||
         (h as any).is_working === false;
 
-      if (customFilter === "working") return isWorking;
-      if (customFilter === "broken") return isBroken;
+      if (effectiveFilter === "working") return isWorking;
+      if (effectiveFilter === "broken") return isBroken;
       return true; // "all"
     });
 
@@ -916,15 +918,15 @@ export default function HydrantMap() {
           <span className="sr-only">{message}</span>
           <div className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
-          {/* Idranti Vicini — grande e prominente */}
+          {/* Idranti Vicini — MOLTO grande e prominente */}
           <button
             type="button"
             onClick={findClosestHydrants}
             disabled={!userPosition || hydrants.length === 0}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-indigo-400 bg-indigo-600 px-4 py-3 text-lg font-black tracking-wide text-white shadow-lg shadow-indigo-600/30 transition-all hover:bg-indigo-700 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-3 rounded-2xl border-3 border-red-400 bg-gradient-to-r from-red-600 to-rose-700 px-6 py-4 text-2xl font-black tracking-wide text-white shadow-xl shadow-red-600/40 transition-all hover:from-red-700 hover:to-rose-800 active:scale-95 disabled:pointer-events-none disabled:opacity-40 animate-pulse"
           >
-            <LocateFixed size={22} aria-hidden="true" />
-            🚒 Idranti Vicini
+            <LocateFixed size={32} aria-hidden="true" />
+            🚒 IDRANTI VICINI
           </button>
 
           {/* Cerca */}
@@ -1227,7 +1229,7 @@ export default function HydrantMap() {
                     <span className="text-3xl" aria-hidden="true">🕳️</span>
                     <div>
                       <p className="font-black tracking-wide">IDRANTE A SOTTOSUOLO</p>
-                      <p className="text-sm font-medium opacity-90 mt-0.5">Assicurati di compilare correttamente lo stato del pozzetto più in basso.</p>
+                      <p className="text-sm font-medium opacity-90 mt-0.5">Compila: SI APRE (SI/NO), Accessibilità Mezzi e le 2 Foto.</p>
                     </div>
                   </div>
                 )}
@@ -1352,10 +1354,10 @@ export default function HydrantMap() {
 
                 <div className="rounded-lg border-2 border-slate-200 bg-white p-4 space-y-4">
                   <span className="block text-lg font-black text-slate-800 flex items-center gap-2">
-                    🕳️ Pozzetto (A terra)
+                    {isSottosuolo ? "🕳️ Chiusino Sottosuolo" : "🕳️ Pozzetto (A terra)"}
                   </span>
                   <div className="space-y-4">
-                    <span className="block text-base font-semibold text-slate-700">Pozzetto presente?</span>
+                    <span className="block text-base font-semibold text-slate-700">{isSottosuolo ? "" : "Pozzetto presente?"}</span>
                     <div className="flex gap-4">
                       <label className="flex flex-1 items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-lg font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-100 has-[:checked]:text-blue-800">
                         <input
@@ -1596,7 +1598,7 @@ export default function HydrantMap() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">Accessibilità Mezzi</h3>
             <div className="flex flex-col gap-3">
               {[
-                "A TUTTI I MEZZI COMPRESI CAMION A 4 ASSI / STRADA PIÙ LARGA DI 3,5 METRI",
+                "A TUTTI I MEZZI / CAMION CISTERNA / STRADA PIÙ LARGA DI 3,5 METRI",
                 "SOLO MEZZI LEGGERI",
               ].map((accessOption) => (
                 <label key={accessOption} className="flex min-h-[56px] items-center gap-3 cursor-pointer rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-700 transition hover:border-blue-400 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-800">
@@ -2001,7 +2003,7 @@ export default function HydrantMap() {
                         </button>
                       )}
                       <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`}
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}&travelmode=driving`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-base font-bold text-white transition hover:bg-indigo-700 active:scale-95 min-h-[48px]"
@@ -2088,7 +2090,7 @@ export default function HydrantMap() {
                 </span>
               </div>
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedHydrant.latitude},${selectedHydrant.longitude}`}
+                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedHydrant.latitude},${selectedHydrant.longitude}&travelmode=driving`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-indigo-600 p-4 text-white transition hover:bg-indigo-700 active:scale-95"
