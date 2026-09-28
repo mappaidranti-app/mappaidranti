@@ -27,7 +27,6 @@ import {
   Siren,
   X,
   ChevronDown,
-  Pencil,
   Camera,
   Droplets,
 } from "lucide-react";
@@ -189,6 +188,9 @@ export default function HydrantMap() {
   const [previewRavvicinata, setPreviewRavvicinata] = useState<string | null>(null);
   const [previewPanoramica, setPreviewPanoramica] = useState<string | null>(null);
   const [previewPozzetto, setPreviewPozzetto] = useState<string | null>(null);
+  const [panoramicaVerticale, setPanoramicaVerticale] = useState(false);
+  /** Foto aperta a schermo intero (null = chiusa) */
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
   const inputRavvicinataRef = useRef<HTMLInputElement>(null);
   const inputPanoramicaRef = useRef<HTMLInputElement>(null);
   const inputPozzettoRef = useRef<HTMLInputElement>(null);
@@ -636,7 +638,7 @@ export default function HydrantMap() {
       const { data: newHydrant, error: insertError } = await supabase
         .from("hydrants")
         .insert(payload)
-        .select("id, code, type, status, condition, dn, caps_present, caps_quantity, chains_present, chains_quantity, attached_pit, notes, latitude, longitude, photo_url, created_at, municipality_id, hamlet, street, street_number, connections, sign_present, has_pit, pit_inspectable, pit_status, cappellotto_status, pit_photo_url, needs_painting, water_leak")
+        .select("*")
         .single();
 
       if (insertError) {
@@ -663,6 +665,7 @@ export default function HydrantMap() {
       setPreviewRavvicinata(null);
       setPreviewPanoramica(null);
       setPreviewPozzetto(null);
+      setPanoramicaVerticale(false);
 
       setMessage("✅ Idrante salvato con successo!");
       setTimeout(() => {
@@ -726,6 +729,10 @@ export default function HydrantMap() {
     }
 
     const clean = accessibility.trim().toLowerCase();
+
+    if (clean.includes("mezzi leggeri")) {
+      return { isAccessible: false, text: "🚫 SOLO MEZZI LEGGERI", details: accessibility };
+    }
 
     if (
       clean.includes("tutti i mezzi") ||
@@ -1423,9 +1430,13 @@ export default function HydrantMap() {
                       {previewPozzetto ? (
                         <div className="space-y-2">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={previewPozzetto} alt="Preview Pozzetto" className="h-48 md:h-56 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                          <button type="button" onClick={() => setZoomImage(previewPozzetto)} className="relative block w-full">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={previewPozzetto} alt="Preview Pozzetto" className="h-48 md:h-56 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                            <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1.5 text-sm font-bold text-white">🔍 Tocca per ingrandire</span>
+                          </button>
                           <div className="flex items-center gap-2">
-                            <span className="flex-1 rounded-lg bg-emerald-100 py-2 text-center text-sm font-bold text-emerald-700 shadow-sm">✓ CONFERMA (OK)</span>
+                            <span className="flex-1 rounded-lg bg-emerald-500 py-2 text-center text-base font-black text-white shadow-sm">✓ FOTO OK</span>
                             <button
                               type="button"
                               onClick={() => inputPozzettoRef.current?.click()}
@@ -1443,6 +1454,7 @@ export default function HydrantMap() {
                         >
                           <Camera size={28} aria-hidden="true" />
                           <span className="text-base font-black">OK - SCATTA FOTO</span>
+                          <span className="text-sm font-semibold text-slate-600 px-3">Dopo lo scatto premi il segno ✓ per confermare</span>
                         </button>
                       )}
                     </div>
@@ -1631,13 +1643,17 @@ export default function HydrantMap() {
               />
               <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4">
                 <p className="text-base font-black text-slate-800 uppercase tracking-wide">📷 FOTO DA VICINO</p>
-                <p className="text-xs text-slate-500 mb-3">Max 1 metro dall&apos;idrante</p>
+                <p className="text-lg font-black text-blue-700 mb-3">📏 A 1 METRO DALL&apos;IDRANTE</p>
                 {previewRavvicinata ? (
                   <div className="space-y-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={previewRavvicinata} alt="Ravvicinata" className="h-64 md:h-80 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                    <button type="button" onClick={() => setZoomImage(previewRavvicinata)} className="relative block w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={previewRavvicinata} alt="Ravvicinata" className="h-64 md:h-80 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                      <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1.5 text-sm font-bold text-white">🔍 Tocca per ingrandire</span>
+                    </button>
                     <div className="flex items-center gap-2 mt-3">
-                      <button type="button" className="flex-1 rounded-xl bg-emerald-500 py-3 text-center text-base font-black text-white hover:bg-emerald-600 transition shadow-sm">✓ CONFERMA FOTO</button>
+                      <span className="flex-1 rounded-xl bg-emerald-500 py-3 text-center text-base font-black text-white shadow-sm">✓ FOTO OK</span>
                       <button
                         type="button"
                         onClick={() => inputRavvicinataRef.current?.click()}
@@ -1655,6 +1671,7 @@ export default function HydrantMap() {
                   >
                     <Camera size={28} aria-hidden="true" />
                     <span className="text-base font-black">OK - SCATTA FOTO</span>
+                    <span className="text-sm font-semibold text-slate-600 px-3">Dopo lo scatto premi il segno ✓ per confermare</span>
                   </button>
                 )}
               </div>
@@ -1673,19 +1690,33 @@ export default function HydrantMap() {
                     const objectUrl = URL.createObjectURL(file);
                     setFilePanoramica(file);
                     setPreviewPanoramica(objectUrl);
+                    // Controllo orientamento: la panoramica deve essere orizzontale
+                    const probe = new Image();
+                    probe.onload = () => setPanoramicaVerticale(probe.naturalHeight > probe.naturalWidth);
+                    probe.src = objectUrl;
                   }
                   setTimeout(() => { if (inputPanoramicaRef.current) inputPanoramicaRef.current.value = ''; }, 100);
                 }}
               />
               <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4">
                 <p className="text-base font-black text-slate-800 uppercase tracking-wide">🌄 FOTO PANORAMICA ORIZZONTALE</p>
-                <p className="text-xs text-slate-500 mb-3">Minimo 3 metri di distanza</p>
+                <p className="text-lg font-black text-blue-700">📏 DA 4 A 6 METRI DI DISTANZA</p>
+                <p className="text-base font-bold text-slate-700 mb-3">📱↔️ Tieni il telefono in ORIZZONTALE</p>
+                {panoramicaVerticale && (
+                  <p className="mb-3 rounded-lg border-2 border-amber-400 bg-amber-50 p-3 text-base font-bold text-amber-800">
+                    ⚠️ La foto è verticale. Rifalla tenendo il telefono in orizzontale.
+                  </p>
+                )}
                 {previewPanoramica ? (
                   <div className="space-y-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={previewPanoramica} alt="Panoramica" className="h-64 md:h-80 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                    <button type="button" onClick={() => setZoomImage(previewPanoramica)} className="relative block w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={previewPanoramica} alt="Panoramica" className="h-64 md:h-80 w-full object-contain rounded-lg border border-slate-200 bg-black" />
+                      <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1.5 text-sm font-bold text-white">🔍 Tocca per ingrandire</span>
+                    </button>
                     <div className="flex items-center gap-2 mt-3">
-                      <button type="button" className="flex-1 rounded-xl bg-emerald-500 py-3 text-center text-base font-black text-white hover:bg-emerald-600 transition shadow-sm">✓ CONFERMA FOTO</button>
+                      <span className="flex-1 rounded-xl bg-emerald-500 py-3 text-center text-base font-black text-white shadow-sm">✓ FOTO OK</span>
                       <button
                         type="button"
                         onClick={() => inputPanoramicaRef.current?.click()}
@@ -1703,6 +1734,7 @@ export default function HydrantMap() {
                   >
                     <Camera size={28} aria-hidden="true" />
                     <span className="text-base font-black">OK - SCATTA FOTO</span>
+                    <span className="text-sm font-semibold text-slate-600 px-3">Dopo lo scatto premi il segno ✓ per confermare</span>
                   </button>
                 )}
               </div>
@@ -1953,45 +1985,6 @@ export default function HydrantMap() {
                       >
                         Dettagli
                       </button>
-                      {canEdit && !isReadOnly && (
-                        <button
-                          onClick={() => {
-                            setIsClosestListOpen(false);
-                            setSelectedHydrant(null);
-                            setDraftPosition({
-                              latitude: h.latitude,
-                              longitude: h.longitude,
-                            });
-                            setIsDrawerOpen(true);
-                            setForm({
-                              code: h.code,
-                              street: h.street || "",
-                              street_number: h.street_number || "",
-                              type: h.type,
-                              connections: h.connections || [],
-                              status: h.status,
-                              condition: (h.condition as HydrantCondition) || "DISCRETO",
-                              uni45Count: 0,
-                              uni70Count: 0,
-                              caps_status: h.caps_present === false ? "KO" : "OK",
-                              missingCaps: h.caps_quantity ?? 0,
-                              chains_status: h.chains_present === false ? "KO" : "OK",
-                              missingChains: h.chains_quantity ?? 0,
-                              sign_present: h.sign_present !== undefined ? h.sign_present : null,
-                              accessibility: h.accessibility || "",
-                              notes: h.notes || "",
-                              has_pit: h.has_pit ?? null,
-                              pit_status: h.pit_status ?? null,
-                              needs_painting: h.needs_painting ?? null,
-                              cappellotto_status: h.cappellotto_status ?? null,
-                              water_leak: (h as any).water_leak ?? null,
-                            });
-                          }}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-base font-bold text-white transition hover:bg-blue-700 active:scale-95 min-h-[48px]"
-                        >
-                          <Pencil size={16} /> Modifica
-                        </button>
-                      )}
                       <a
                         href={`https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}&travelmode=driving`}
                         target="_blank"
@@ -2051,7 +2044,7 @@ export default function HydrantMap() {
           {selectedHydrant.photo_url && (
             <div className="shrink-0 relative h-48 md:h-64 w-full bg-slate-900">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={selectedHydrant.photo_url} alt="Vista Panoramica" className="h-full w-full object-cover opacity-90" />
+              <img src={selectedHydrant.photo_url} alt="Vista Panoramica" onClick={() => setZoomImage(selectedHydrant.photo_url)} className="h-full w-full object-cover opacity-90 cursor-zoom-in" />
               <div className="absolute bottom-3 right-3 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-bold text-white shadow-md backdrop-blur-md">
                 📷 FOTO PANORAMICA
               </div>
@@ -2195,8 +2188,8 @@ export default function HydrantMap() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {selectedHydrant.photo_url && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold uppercase text-slate-500 block">Ravvicinata / Dettaglio</span>
-                      <a href={selectedHydrant.photo_url} target="_blank" rel="noopener noreferrer">
+                      <span className="text-xs font-bold uppercase text-slate-500 block">Panoramica</span>
+                      <a href={selectedHydrant.photo_url} onClick={(e) => { e.preventDefault(); setZoomImage(selectedHydrant.photo_url); }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={selectedHydrant.photo_url} alt="Ravvicinata" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
                       </a>
@@ -2205,7 +2198,7 @@ export default function HydrantMap() {
                   {selectedHydrant.pit_photo_url && (
                     <div className="space-y-1.5">
                       <span className="text-xs font-bold uppercase text-slate-500 block">Interno Pozzetto</span>
-                      <a href={selectedHydrant.pit_photo_url} target="_blank" rel="noopener noreferrer">
+                      <a href={selectedHydrant.pit_photo_url} onClick={(e) => { e.preventDefault(); setZoomImage(selectedHydrant.pit_photo_url ?? null); }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={selectedHydrant.pit_photo_url} alt="Pozzetto" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
                       </a>
@@ -2216,49 +2209,9 @@ export default function HydrantMap() {
             )}
           </div>
 
-          {/* Footer - Modifica */}
-          {canEdit && !isReadOnly && (
-            <div className="border-t border-slate-200 bg-white p-4 md:p-6">
-              <button
-                onClick={() => {
-                  setSelectedHydrant(null);
-                  setDraftPosition({
-                    latitude: selectedHydrant.latitude,
-                    longitude: selectedHydrant.longitude,
-                  });
-                  setIsDrawerOpen(true);
-                  setForm({
-                    code: selectedHydrant.code,
-                    street: selectedHydrant.street || "",
-                    street_number: selectedHydrant.street_number || "",
-                    type: selectedHydrant.type,
-                    connections: selectedHydrant.connections || [],
-                    status: selectedHydrant.status,
-                    condition: (selectedHydrant.condition as HydrantCondition) || "DISCRETO",
-                    uni45Count: 0,
-                    uni70Count: 0,
-                    caps_status: selectedHydrant.caps_present === false ? "KO" : "OK",
-                    missingCaps: selectedHydrant.caps_quantity ?? 0,
-                    chains_status: selectedHydrant.chains_present === false ? "KO" : "OK",
-                    missingChains: selectedHydrant.chains_quantity ?? 0,
-                    sign_present: selectedHydrant.sign_present !== undefined ? selectedHydrant.sign_present : null,
-                    accessibility: selectedHydrant.accessibility || "",
-                    notes: selectedHydrant.notes || "",
-                    has_pit: selectedHydrant.has_pit ?? null,
-                    pit_status: selectedHydrant.pit_status ?? null,
-                    needs_painting: selectedHydrant.needs_painting ?? null,
-                    cappellotto_status: selectedHydrant.cappellotto_status ?? null,
-                    water_leak: (selectedHydrant as any).water_leak ?? null,
-                  });
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 active:scale-[0.98]"
-              >
-                <Pencil size={18} /> Modifica Scheda Tecnica
-              </button>
-            </div>
-          )}
         </div>
       )}
+      {zoomImage && <ImageLightbox src={zoomImage} onClose={() => setZoomImage(null)} />}
     </main>
   );
 }
@@ -2404,6 +2357,34 @@ function StreetCombobox({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Foto a schermo intero: tocca per ingrandire/ridurre, trascina per spostarti. */
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <div className="fixed inset-0 z-[10000] flex flex-col bg-black">
+      <div className="flex items-center justify-between p-3 text-white">
+        <span className="text-sm font-bold">{zoomed ? "Tocca per ridurre" : "Tocca la foto per ingrandire"}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2 text-base font-bold hover:bg-white/25"
+        >
+          <X size={20} /> CHIUDI
+        </button>
+      </div>
+      <div className={`flex-1 ${zoomed ? "overflow-auto" : "overflow-hidden flex items-center justify-center"}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Foto ingrandita"
+          onClick={() => setZoomed((z) => !z)}
+          className={zoomed ? "max-w-none w-[250%] cursor-zoom-out" : "max-h-full max-w-full object-contain cursor-zoom-in"}
+        />
+      </div>
     </div>
   );
 }
