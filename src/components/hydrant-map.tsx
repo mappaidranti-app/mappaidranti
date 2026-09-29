@@ -546,7 +546,7 @@ export default function HydrantMap() {
     try {
       let photoUrl: string | null = null;
       let pitPhotoUrl: string | null = null;
-      let notesWithPhoto = form.notes.trim();
+      let closeupPhotoUrl: string | null = null;
 
       // 1. Upload delle foto (con Promise.all per parallelismo)
       const filesToUpload = [];
@@ -583,11 +583,7 @@ export default function HydrantMap() {
         for (const res of results) {
           if (res.type === 'panoramica') photoUrl = res.url;
           else if (res.type === 'pozzetto') pitPhotoUrl = res.url;
-          else if (res.type === 'ravvicinata') {
-            notesWithPhoto = notesWithPhoto
-              ? `${notesWithPhoto}\n\n[Foto Ravvicinata]: ${res.url}`
-              : `[Foto Ravvicinata]: ${res.url}`;
-          }
+          else if (res.type === 'ravvicinata') closeupPhotoUrl = res.url;
         }
       }
 
@@ -612,7 +608,7 @@ export default function HydrantMap() {
         caps_quantity: isSottosuolo ? 0 : (form.missingCaps ?? null),
         chains_present: isSottosuolo ? true : (form.chains_status === "OK" ? true : form.chains_status === "KO" ? false : null),
         chains_quantity: isSottosuolo ? 0 : (form.missingChains ?? null),
-        notes: notesWithPhoto || null,
+        notes: form.notes.trim() || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
         municipality_id: municipalityId,
@@ -623,6 +619,7 @@ export default function HydrantMap() {
         sign_present: form.sign_present,
         accessibility: form.accessibility || null,
         photo_url: photoUrl,
+        closeup_photo_url: closeupPhotoUrl,
         code: form.code.trim() || null,
         has_pit: form.has_pit,
         pit_status: form.pit_status,
@@ -2182,16 +2179,25 @@ export default function HydrantMap() {
             </div>
 
             {/* Foto Section */}
-            {(selectedHydrant.photo_url || selectedHydrant.pit_photo_url) && (
+            {(selectedHydrant.photo_url || selectedHydrant.closeup_photo_url || selectedHydrant.pit_photo_url) && (
               <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">📷 Documentazione Fotografica</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {selectedHydrant.photo_url && (
                     <div className="space-y-1.5">
                       <span className="text-xs font-bold uppercase text-slate-500 block">Panoramica</span>
                       <a href={selectedHydrant.photo_url} onClick={(e) => { e.preventDefault(); setZoomImage(selectedHydrant.photo_url); }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={selectedHydrant.photo_url} alt="Ravvicinata" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
+                        <img src={selectedHydrant.photo_url} alt="Panoramica" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
+                      </a>
+                    </div>
+                  )}
+                  {selectedHydrant.closeup_photo_url && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold uppercase text-slate-500 block">Ravvicinata</span>
+                      <a href={selectedHydrant.closeup_photo_url} onClick={(e) => { e.preventDefault(); setZoomImage(selectedHydrant.closeup_photo_url ?? null); }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedHydrant.closeup_photo_url} alt="Ravvicinata" className="w-full h-48 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
                       </a>
                     </div>
                   )}

@@ -157,7 +157,7 @@ export default function AdminEnteDashboard() {
     
     const headers = [
       "ID", "Codice", "Tipo", "Stato", "Condizione", "Tappi", "Catenelle", 
-      "Pozzetto", "Stato Pozzetto", "Da Verniciare", "Accessibilita", "Indirizzo", "Latitudine", "Longitudine", "Note", "Foto URL"
+      "Pozzetto", "Stato Pozzetto", "Da Verniciare", "Accessibilita", "Indirizzo", "Latitudine", "Longitudine", "Note", "Foto Panoramica", "Foto Ravvicinata"
     ];
     
     const escapeCSV = (val: string) => {
@@ -183,7 +183,8 @@ export default function AdminEnteDashboard() {
       String(h.latitude),
       String(h.longitude),
       escapeCSV(h.notes || ""),
-      escapeCSV(h.photo_url || "")
+      escapeCSV(h.photo_url || ""),
+      escapeCSV(h.closeup_photo_url || "")
     ]);
     
     const csvContent = [

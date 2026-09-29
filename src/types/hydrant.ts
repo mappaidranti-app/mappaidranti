@@ -26,7 +26,10 @@ export type Hydrant = {
   notes: string | null;
   latitude: number;
   longitude: number;
+  /** Foto panoramica */
   photo_url: string | null;
+  /** Foto ravvicinata */
+  closeup_photo_url?: string | null;
   created_at?: string;
   municipality_id?: string | null;
   hamlet?: string | null;
