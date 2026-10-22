@@ -96,6 +96,16 @@ const draftIcon = L.divIcon({
   iconAnchor: [15, 30],
 });
 
+/** Segnaposto numerato per gli idranti della lista "Idranti vicini" */
+function closestIcon(rank: number) {
+  return L.divIcon({
+    className: "",
+    html: `<div class="hydrant-pin hydrant-pin--closest"><span>${rank}</span></div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+  });
+}
+
 const userIcon = L.divIcon({
   className: "",
   html: '<div class="user-pin"></div>',
@@ -120,7 +130,14 @@ function BoundsFlyTo({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
 
   useEffect(() => {
     if (bounds) {
-      map.flyToBounds(bounds, { padding: [50, 50], duration: 1.2 });
+      // Margini per non finire sotto la barra in alto e la lista "Idranti vicini"
+      const isDesktop = window.innerWidth >= 768;
+      map.flyToBounds(bounds, {
+        paddingTopLeft: isDesktop ? [440, 140] : [30, 200],
+        paddingBottomRight: isDesktop ? [40, 40] : [30, Math.round(window.innerHeight * 0.4) + 20],
+        maxZoom: 18,
+        duration: 1.2,
+      });
     }
   }, [map, bounds]);
 
@@ -165,8 +182,7 @@ export default function HydrantMap() {
   const [message, setMessage] = useState("Tocca la mappa per censire un idrante.");
   const [loadError, setLoadError] = useState<string | null>(null);
   
-  const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [closestHydrantsIds, setClosestHydrantsIds] = useState<Set<string | number>>(new Set()); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [mapBounds, setMapBounds] = useState<L.LatLngBoundsExpression | null>(null);
   const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
@@ -181,7 +197,6 @@ export default function HydrantMap() {
   const [selectedHydrant, setSelectedHydrant] = useState<Hydrant | null>(null);
   const [isClosestListOpen, setIsClosestListOpen] = useState(false);
   const [closestHydrantsList, setClosestHydrantsList] = useState<(Hydrant & { distance: number })[]>([]);
-  const [closestFilter, setClosestFilter] = useState<"working" | "all" | "broken">("working");
   const [fileRavvicinata, setFileRavvicinata] = useState<File | null>(null);
   const [filePanoramica, setFilePanoramica] = useState<File | null>(null);
   const [filePozzetto, setFilePozzetto] = useState<File | null>(null);
@@ -749,7 +764,8 @@ export default function HydrantMap() {
     return { isAccessible: false, text: "🚫 SOLO MEZZI LEGGERI", details: accessibility };
   }
 
-  function findClosestHydrants(customFilter: "working" | "all" | "broken" = closestFilter) {
+  /** Lista dei 10 idranti FUNZIONANTI più vicini (per tutti i ruoli: è la vista operativa per i VVFF) */
+  function findClosestHydrants() {
     if (!userPosition) {
       setMessage("Posizione non disponibile. Premi il tasto geolocalizzazione.");
       return;
@@ -760,22 +776,12 @@ export default function HydrantMap() {
       return;
     }
 
-    // In modalità VVFF/consultazione: TASSATIVAMENTE solo Funzionanti
-    const effectiveFilter = isReadOnly ? "working" : customFilter;
-    const filtered = hydrants.filter((h) => {
-      const isWorking =
+    const filtered = hydrants.filter(
+      (h) =>
         h.status === "Funzionante" ||
         (h.status as string)?.toLowerCase() === "funzionante" ||
-        (h as any).is_working === true;
-      const isBroken =
-        h.status === "Non funzionante" ||
-        (h.status as string)?.toLowerCase() === "non funzionante" ||
-        (h as any).is_working === false;
-
-      if (effectiveFilter === "working") return isWorking;
-      if (effectiveFilter === "broken") return isBroken;
-      return true; // "all"
-    });
+        (h as any).is_working === true,
+    );
 
     // Calcola le distanze (in metri) usando la formula di Haversine
     const withDistances = filtered.map((h) => ({
@@ -785,16 +791,22 @@ export default function HydrantMap() {
 
     // Ordina per distanza e mostra i 10 più vicini
     withDistances.sort((a, b) => a.distance - b.distance);
-    setClosestHydrantsList(withDistances.slice(0, 10));
+    const closest = withDistances.slice(0, 10);
+    setClosestHydrantsList(closest);
+
+    // Inquadra la posizione dell'utente e i 5 idranti più vicini
+    if (closest.length > 0) {
+      setMapBounds(
+        L.latLngBounds([
+          [userPosition.latitude, userPosition.longitude],
+          ...closest.slice(0, 5).map((h) => [h.latitude, h.longitude] as [number, number]),
+        ]),
+      );
+    }
     setIsClosestListOpen(true);
     setDraftPosition(null);
     setIsDrawerOpen(false);
     setSelectedHydrant(null);
-  }
-
-  function handleToggleClosestFilter(newFilter: "working" | "all" | "broken") {
-    setClosestFilter(newFilter);
-    findClosestHydrants(newFilter);
   }
 
   const isSottosuolo = String(form.type || "").trim().toLowerCase() === "sottosuolo";
@@ -819,7 +831,7 @@ export default function HydrantMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {!isReadOnly && <MapClickHandler onSelect={correctDraftPosition} />}
+        {!isReadOnly && !isClosestListOpen && <MapClickHandler onSelect={correctDraftPosition} />}
         <LocationFlyTo
           position={userPosition ? [userPosition.latitude, userPosition.longitude] : null}
         />
@@ -861,11 +873,14 @@ export default function HydrantMap() {
           </Marker>
         )}
 
-        {filteredHydrants.map((hydrant) => (
+        {filteredHydrants.map((hydrant) => {
+          const closestRank = isClosestListOpen ? closestHydrantsList.findIndex((h) => h.id === hydrant.id) + 1 : 0;
+          return (
           <Marker
             key={hydrant.id}
             position={[hydrant.latitude, hydrant.longitude]}
-            icon={hydrantIcon}
+            icon={closestRank > 0 ? closestIcon(closestRank) : hydrantIcon}
+            zIndexOffset={closestRank > 0 ? 1000 - closestRank : 0}
             eventHandlers={{
               click: () => {
                 setFromClosestList(false);
@@ -877,10 +892,11 @@ export default function HydrantMap() {
               {hydrant.code} - {STATUS_LABELS[hydrant.status]}
             </Tooltip>
           </Marker>
-        ))}
+          );
+        })}
 
         {filteredHydrants.map((hydrant) => {
-          const isClosest = closestHydrantsIds.has(hydrant.id);
+          const isClosest = isClosestListOpen && closestHydrantsList.some((h) => h.id === hydrant.id);
           const statusColor =
             hydrant.status === "Non funzionante" ? "#e11d48"
             : hydrant.status === "Da verificare" ? "#f59e0b"
@@ -915,7 +931,7 @@ export default function HydrantMap() {
           {/* Idranti Vicini — MOLTO grande e prominente */}
           <button
             type="button"
-            onClick={findClosestHydrants}
+            onClick={() => findClosestHydrants()}
             disabled={!userPosition || hydrants.length === 0}
             className="flex flex-1 items-center justify-center gap-3 rounded-2xl border-3 border-red-400 bg-gradient-to-r from-red-600 to-rose-700 px-6 py-4 text-2xl font-black tracking-wide text-white shadow-xl shadow-red-600/40 transition-all hover:from-red-700 hover:to-rose-800 active:scale-95 disabled:pointer-events-none disabled:opacity-40 animate-pulse"
           >
@@ -1822,7 +1838,7 @@ export default function HydrantMap() {
       )}
 
       {/* ── PULSANTE RICERCA IDRANTI (Solo Visitatore / VVFF) ── */}
-      {isReadOnly && !draftPosition && (
+      {isReadOnly && !draftPosition && !isClosestListOpen && (
         <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
           <div className="relative pointer-events-auto">
             <span className="absolute inset-0 rounded-full animate-ping bg-slate-500/30" />
@@ -1841,12 +1857,8 @@ export default function HydrantMap() {
       {/* Modal Idrante Più Vicino - Bottom Sheet / Drawer */}
       {isClosestListOpen && (
         <>
-          {/* Sfondo scuro opzionale per enfatizzare il bottom sheet */}
-          <div 
-            className="absolute inset-0 z-[550] bg-black/20 backdrop-blur-sm animate-in fade-in"
-            onClick={() => setIsClosestListOpen(false)}
-          />
-          <div className="absolute inset-x-0 bottom-0 z-[600] flex max-h-[70vh] flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:bottom-4 md:left-4 md:w-[400px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl animate-in slide-in-from-bottom-full duration-300">
+          {/* Nessun velo sulla mappa: gli idranti vicini restano visibili, numerati come nella lista */}
+          <div className="absolute inset-x-0 bottom-0 z-[600] flex max-h-[40vh] md:max-h-[70vh] flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:bottom-4 md:left-4 md:w-[400px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl animate-in slide-in-from-bottom-full duration-300">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6 rounded-t-3xl md:rounded-t-2xl">
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
                 <Siren className="text-blue-600" /> Idranti più vicini
@@ -1859,73 +1871,19 @@ export default function HydrantMap() {
               </button>
             </div>
 
-            {/* Selettore / Toggle Stato: Default solo Funzionanti — nascosto in modalità VVFF */}
-            {isReadOnly ? (
-              <div className="flex items-center gap-2 border-b border-slate-200 bg-emerald-50 px-4 py-2.5 md:px-6">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black text-white">
-                  ✅ Solo idranti FUNZIONANTI
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-100/90 px-4 py-2.5 md:px-6">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filtro:</span>
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleClosestFilter("working")}
-                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
-                      closestFilter === "working"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
-                  >
-                    ✅ Funzionanti
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleClosestFilter("broken")}
-                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
-                      closestFilter === "broken"
-                        ? "bg-rose-600 text-white shadow-sm"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
-                  >
-                    ❌ Non funzionanti
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleClosestFilter("all")}
-                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
-                      closestFilter === "all"
-                        ? "bg-slate-800 text-white shadow-sm"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
-                  >
-                    Tutti
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Solo idranti funzionanti, per tutti i ruoli: le altre viste stanno nel pannello di controllo */}
+            <div className="flex items-center gap-2 border-b border-slate-200 bg-emerald-50 px-4 py-2.5 md:px-6">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black text-white">
+                ✅ Solo idranti FUNZIONANTI
+              </span>
+            </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
               {closestHydrantsList.length === 0 ? (
                 <div className="py-10 text-center bg-white rounded-2xl border-2 border-dashed border-slate-200 p-6">
                   <p className="text-slate-600 font-bold text-sm">
-                    {closestFilter === "working"
-                      ? "Nessun idrante funzionante trovato nelle vicinanze."
-                      : closestFilter === "broken"
-                      ? "Nessun idrante non funzionante trovato nelle vicinanze."
-                      : "Nessun idrante trovato sulla mappa."}
+                    Nessun idrante funzionante trovato nelle vicinanze.
                   </p>
-                  {closestFilter !== "all" && (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleClosestFilter("all")}
-                      className="mt-3 text-xs font-bold text-blue-600 hover:underline inline-block"
-                    >
-                      Mostra tutti gli idranti
-                    </button>
-                  )}
                 </div>
               ) : (
                 closestHydrantsList.map((h, i) => (
@@ -1958,8 +1916,10 @@ export default function HydrantMap() {
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300"
                                 : "bg-rose-100 text-rose-900 border-rose-300"
                             }`}>
-                              <span className="text-lg">{access.isAccessible ? "🚒" : "🚫"}</span>
                               <span>{access.text}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black tracking-wide border shadow-sm bg-slate-100 text-slate-800 border-slate-300">
+                              {String(h.type || "").trim().toLowerCase() === "sottosuolo" ? "⬇️ SOTTOSUOLO" : "⬆️ A COLONNA"}
                             </span>
                           </div>
                         );

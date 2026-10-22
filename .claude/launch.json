@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "const fs=require('fs');for(const l of fs.readFileSync('.env-DESKTOP-C2C9CQU.local','utf8').split(/\\r?\\n/)){const m=l.match(/^([A-Z_]+)=(.*)$/);if(m)process.env[m[1]]=m[2];}require('child_process').spawn('npm',['run','dev'],{stdio:'inherit',shell:true});"
+      ],
+      "port": 3000
+    }
+  ]
+}

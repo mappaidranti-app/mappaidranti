@@ -94,3 +94,22 @@ body {
     box-shadow: 0 0 0 0 rgb(37 99 235 / 0);
   }
 }
+
+/* Idranti della lista "Idranti vicini": più grandi e numerati */
+.hydrant-pin--closest {
+  height: 40px;
+  width: 40px;
+  border: 3px solid #06b6d4;
+}
+
+.hydrant-pin--closest::after {
+  display: none;
+}
+
+.hydrant-pin--closest span {
+  transform: rotate(45deg);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
