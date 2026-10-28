@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Hydrant, HydrantCondition } from "@/types/hydrant";
 import { Download } from "lucide-react";
@@ -52,6 +52,15 @@ export default function AdminEnteDashboard() {
   const [searchComune, setSearchComune] = useState("");
   const [searchVia, setSearchVia] = useState("");
   const [searchTipologia, setSearchTipologia] = useState("all");
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  /** Applica il filtro e porta subito la vista sull'elenco dei risultati */
+  const applyFilter = (key: FilterType) => {
+    setFilter(key);
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+
+  const municipalityOf = (h: Hydrant) => (h as any).municipalities?.name || "";
 
   const fetchHydrants = useCallback(async (munId: string | null) => {
     if (!supabase) {
@@ -156,7 +165,7 @@ export default function AdminEnteDashboard() {
     if (filteredHydrants.length === 0) return;
     
     const headers = [
-      "ID", "Codice", "Tipo", "Stato", "Condizione", "Tappi", "Catenelle", 
+      "ID", "Codice", "Comune", "Tipo", "Stato", "Condizione", "Tappi", "Catenelle", 
       "Pozzetto", "Stato Pozzetto", "Da Verniciare", "Accessibilita", "Indirizzo", "Latitudine", "Longitudine", "Note", "Foto Panoramica", "Foto Ravvicinata"
     ];
     
@@ -170,6 +179,7 @@ export default function AdminEnteDashboard() {
     const rows = filteredHydrants.map(h => [
       escapeCSV(h.id),
       escapeCSV(h.code || ""),
+      escapeCSV(municipalityOf(h)),
       escapeCSV(h.type || ""),
       escapeCSV(h.status || ""),
       escapeCSV(h.condition || ""),
@@ -296,7 +306,7 @@ export default function AdminEnteDashboard() {
           {FILTER_BUTTONS.map(({ key, label, colorActive, colorInactive }) => (
             <button
               key={key}
-              onClick={() => setFilter(key)}
+              onClick={() => applyFilter(key)}
               className={`w-full text-left px-6 py-4 rounded-xl font-black text-lg uppercase tracking-wide border-2 transition-all active:scale-[0.98] ${
                 filter === key ? colorActive : colorInactive
               }`}
@@ -325,7 +335,7 @@ export default function AdminEnteDashboard() {
           {CONDITION_BUTTONS.map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setFilter(key)}
+              onClick={() => applyFilter(key)}
               className={`w-full px-4 py-4 rounded-xl font-black text-base uppercase tracking-wide border-2 transition-all active:scale-[0.98] ${
                 filter === key
                   ? "bg-blue-600 text-white border-blue-600"
@@ -348,17 +358,22 @@ export default function AdminEnteDashboard() {
       </div>
 
       {/* Results Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+      <div ref={resultsRef} className="scroll-mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-black text-slate-800 uppercase">
             RISULTATI: {filteredHydrants.length} IDRANTI
           </h2>
+          <span className="rounded-lg bg-slate-800 px-3 py-1 text-xs font-black uppercase tracking-wide text-white">
+            Filtro: {[...FILTER_BUTTONS, ...CONDITION_BUTTONS].find((b) => b.key === filter)?.label}
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-50 text-slate-800 font-bold border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4">CODICE</th>
+                <th className="px-6 py-4">COMUNE</th>
+                <th className="px-6 py-4">TIPO</th>
                 <th className="px-6 py-4">STATO</th>
                 <th className="px-6 py-4">INDIRIZZO</th>
                 <th className="px-6 py-4">TAPPI</th>
@@ -371,14 +386,14 @@ export default function AdminEnteDashboard() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600 mb-2"></div>
                     <p>Caricamento dati...</p>
                   </td>
                 </tr>
               ) : filteredHydrants.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500 font-medium">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500 font-medium">
                     Nessun idrante trovato per questo filtro.
                   </td>
                 </tr>
@@ -386,6 +401,12 @@ export default function AdminEnteDashboard() {
                 filteredHydrants.map((h) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-900">{h.code || `ID-${h.id.substring(0, 4)}`}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-800">
+                      {municipalityOf(h) || <span className="text-rose-600 text-xs font-bold">⚠️ Non assegnato</span>}
+                    </td>
+                    <td className="px-6 py-4 text-xs font-bold">
+                      {String(h.type || "").trim().toLowerCase() === "sottosuolo" ? "Sottosuolo" : "A colonna"}
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-bold ${
                         h.status === "Funzionante" ? "bg-emerald-100 text-emerald-800" :

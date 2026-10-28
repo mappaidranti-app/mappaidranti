@@ -19,7 +19,6 @@ import {
   Loader2,
   LocateFixed,
   MapPinPlus,
-  Flame,
   Navigation,
   Save,
   Search,
@@ -31,6 +30,7 @@ import {
   Droplets,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { FlameLogo } from "@/components/flame-logo";
 import type { CappellottoStatus, Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType, PitStatus } from "@/types/hydrant";
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
@@ -82,12 +82,43 @@ const emptyForm: HydrantFormState = {
   water_leak: null,
 };
 
-const hydrantIcon = L.divIcon({
-  className: "",
-  html: '<div class="hydrant-pin"></div>',
-  iconSize: [30, 30],
-  iconAnchor: [15, 30],
-});
+/** Simbolo della colonna idrante (bianco, dentro il segnaposto) */
+const COLONNA_SVG =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff" aria-hidden="true"><rect x="8.5" y="2.5" width="7" height="3" rx="1"/><rect x="7" y="5.5" width="10" height="13.5" rx="2"/><rect x="3.5" y="9.5" width="3.5" height="4.5" rx="1"/><rect x="17" y="9.5" width="3.5" height="4.5" rx="1"/><rect x="5" y="19" width="14" height="2.5" rx="1"/></svg>';
+
+/** Simbolo del chiusino a terra (idrante sottosuolo) */
+const SOTTOSUOLO_SVG =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7 9.5h10M5.5 12h13M7 14.5h10"/></svg>';
+
+const iconCache = new Map<string, L.DivIcon>();
+
+/**
+ * Segnaposto per tipo di idrante: colonna = goccia rossa, sottosuolo = rombo viola.
+ * `highlighted` = idrante della lista "Idranti vicini".
+ */
+function hydrantTypeIcon(type: string | null | undefined, highlighted = false) {
+  const isSottosuolo = String(type || "").trim().toLowerCase() === "sottosuolo";
+  const key = `${isSottosuolo ? "s" : "c"}-${highlighted ? 1 : 0}`;
+  let icon = iconCache.get(key);
+  if (!icon) {
+    const classes = [
+      "hydrant-pin",
+      "hydrant-pin--icon",
+      isSottosuolo ? "hydrant-pin--sottosuolo" : "hydrant-pin--colonna",
+      highlighted ? "hydrant-pin--closest" : "",
+    ].join(" ");
+    const size = highlighted ? 40 : 32;
+    icon = L.divIcon({
+      className: "",
+      html: `<div class="${classes}"><span>${isSottosuolo ? SOTTOSUOLO_SVG : COLONNA_SVG}</span></div>`,
+      iconSize: [size, size],
+      // il segnaposto è ruotato di 45° e sporge sotto il riquadro: l'ancora è sulla punta
+      iconAnchor: [size / 2, Math.round(size * (isSottosuolo ? 1.2 : 1.22))],
+    });
+    iconCache.set(key, icon);
+  }
+  return icon;
+}
 
 const draftIcon = L.divIcon({
   className: "",
@@ -96,15 +127,6 @@ const draftIcon = L.divIcon({
   iconAnchor: [15, 30],
 });
 
-/** Segnaposto numerato per gli idranti della lista "Idranti vicini" */
-function closestIcon(rank: number) {
-  return L.divIcon({
-    className: "",
-    html: `<div class="hydrant-pin hydrant-pin--closest"><span>${rank}</span></div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-  });
-}
 
 const userIcon = L.divIcon({
   className: "",
@@ -156,6 +178,33 @@ function MapClickHandler({
   });
 
   return null;
+}
+
+const PHOTO_MAX_SIDE = 1600;
+const PHOTO_QUALITY = 0.8;
+
+/**
+ * Riduce la foto prima dell'invio (lato lungo max 1600 px, JPEG 80%):
+ * una foto del telefono passa da 3-8 MB a ~300 KB, così il salvataggio
+ * funziona anche con poca rete. In caso di problemi si invia l'originale.
+ */
+async function compressPhoto(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size < 400_000) return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (err) {
+    console.warn("Compressione foto non riuscita, invio l'originale:", err);
+    return file;
+  }
 }
 
 function buildPhotoPath(file: File) {
@@ -575,10 +624,11 @@ export default function HydrantMap() {
         let uploadedCount = 0;
         
         const uploadPromises = filesToUpload.map(async (item) => {
-          const path = buildPhotoPath(item.file);
+          const photo = await compressPhoto(item.file);
+          const path = buildPhotoPath(photo);
           const { error } = await supabase!.storage
             .from("hydrant-photos")
-            .upload(path, item.file, { upsert: false });
+            .upload(path, photo, { upsert: false, contentType: photo.type });
             
           if (error) {
             throw new Error(`Impossibile caricare la foto ${item.type}: ${error.message}`);
@@ -815,8 +865,10 @@ export default function HydrantMap() {
     <main className="relative flex-1 w-full flex flex-col overflow-hidden bg-slate-50 text-slate-950">
       {showSplash && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-red-600 animate-out fade-out duration-500 fill-mode-forwards delay-1500 text-white">
-          <Flame size={80} className="mb-4 animate-pulse text-white drop-shadow-2xl" strokeWidth={1.5} />
-          <h1 className="text-4xl font-black tracking-tight drop-shadow-lg">IDRANTYA</h1>
+          <div className="mb-4">
+            <FlameLogo size={110} />
+          </div>
+          <h1 className="text-5xl font-black tracking-tight drop-shadow-lg">IDRANTYA</h1>
           <p className="mt-2 text-red-200 font-medium">Caricamento mappa operativa...</p>
         </div>
       )}
@@ -879,7 +931,7 @@ export default function HydrantMap() {
           <Marker
             key={hydrant.id}
             position={[hydrant.latitude, hydrant.longitude]}
-            icon={closestRank > 0 ? closestIcon(closestRank) : hydrantIcon}
+            icon={hydrantTypeIcon(hydrant.type, closestRank > 0)}
             zIndexOffset={closestRank > 0 ? 1000 - closestRank : 0}
             eventHandlers={{
               click: () => {
@@ -919,14 +971,9 @@ export default function HydrantMap() {
       {/* ── TOP BAR ── Logo + Idranti Vicini + Cerca + Filtri */}
       <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col items-center gap-2 p-3">
 
-        {/* Riga 1: Logo | Idranti Vicini | Localizza */}
+        {/* Riga 1: Idranti Vicini | Cerca | Localizza (il logo è nella barra in alto) */}
         <div className="pointer-events-auto flex w-full max-w-xl items-center gap-2 rounded-2xl border border-white/60 bg-white/90 px-3 py-2.5 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-md shadow-red-600/30">
-            <Flame size={24} aria-hidden="true" />
-          </div>
-          <span className="hidden text-base font-black tracking-tight text-slate-900 sm:block">IDRANTYA</span>
           <span className="sr-only">{message}</span>
-          <div className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
           {/* Idranti Vicini — MOLTO grande e prominente */}
           <button

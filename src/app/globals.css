@@ -95,21 +95,66 @@ body {
   }
 }
 
-/* Idranti della lista "Idranti vicini": più grandi e numerati */
+/* Simboli per tipo di idrante: colonna = goccia rossa, sottosuolo = rombo viola */
+.hydrant-pin--icon::after {
+  display: none;
+}
+
+.hydrant-pin--icon span {
+  display: grid;
+  place-items: center;
+  transform: rotate(45deg);
+}
+
+.hydrant-pin--sottosuolo {
+  border-radius: 6px;
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  box-shadow: 0 8px 16px rgb(109 40 217 / 0.35);
+}
+
+/* Idranti della lista "Idranti vicini": più grandi, con bordo azzurro */
 .hydrant-pin--closest {
   height: 40px;
   width: 40px;
   border: 3px solid #06b6d4;
 }
 
-.hydrant-pin--closest::after {
-  display: none;
+/* Fiamma della schermata di avvio: tremolio leggero e sfasato tra gli strati */
+.flame-logo path {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
 }
 
-.hydrant-pin--closest span {
-  transform: rotate(45deg);
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1;
+.flame-logo__outer {
+  animation: flame-flicker 1.6s ease-in-out infinite;
+}
+
+.flame-logo__middle {
+  animation: flame-flicker 1.2s ease-in-out infinite reverse;
+}
+
+.flame-logo__core {
+  animation: flame-flicker 0.9s ease-in-out infinite;
+}
+
+@keyframes flame-flicker {
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  25% {
+    transform: scale(0.97, 1.04) skewX(-2deg);
+  }
+  50% {
+    transform: scale(1.02, 0.97) skewX(1.5deg);
+  }
+  75% {
+    transform: scale(0.98, 1.03) skewX(-1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flame-logo path {
+    animation: none;
+  }
 }
