@@ -94,3 +94,10 @@ export function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/** L'errore indica che le tabelle del registro non ci sono ancora (migration non eseguita o cache di Supabase da ricaricare) */
+export function isMissingTableError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  const msg = error.message ?? "";
+  return error.code === "42P01" || error.code === "PGRST205" || msg.includes("does not exist") || msg.includes("schema cache");
+}

@@ -13,6 +13,7 @@ import {
   OUTCOME_LABELS,
   formatDate,
   getDueInfo,
+  isMissingTableError,
   lastVerificationDate,
   todayIso,
 } from "@/lib/maintenance";
@@ -72,7 +73,7 @@ export function MaintenanceSection({ hydrant, userName, isAdmin, onEdit, onHydra
     if (error) {
       console.error("Caricamento registro interventi:", error);
       setLoadError(
-        error.code === "42P01" || error.message.includes("does not exist")
+        isMissingTableError(error)
           ? "Registro manutenzione non ancora attivo: va eseguita la migration add_maintenance_register.sql su Supabase."
           : `Impossibile caricare lo storico: ${error.message}`,
       );

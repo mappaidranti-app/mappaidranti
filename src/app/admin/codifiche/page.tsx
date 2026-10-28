@@ -5,6 +5,7 @@ import { Loader2, Upload } from "lucide-react";
 import { getAccessToken, supabase } from "@/lib/supabase";
 import { importInterventionCodes } from "@/app/admin/actions";
 import type { InterventionCode } from "@/types/hydrant";
+import { isMissingTableError } from "@/lib/maintenance";
 
 type ParsedRow = { code: string; description: string; category: string | null };
 
@@ -59,7 +60,7 @@ export default function CodifichePage() {
     const { data, error } = await supabase.from("intervention_codes").select("code, description, category, is_active").order("code");
     if (error) {
       setLoadError(
-        error.message.includes("does not exist")
+        isMissingTableError(error)
           ? "Tabella codifiche non ancora presente: va eseguita la migration add_maintenance_register.sql su Supabase."
           : error.message,
       );

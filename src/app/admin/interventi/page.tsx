@@ -12,6 +12,7 @@ import {
   OUTCOME_LABELS,
   formatDate,
   getDueInfo,
+  isMissingTableError,
   type DueState,
 } from "@/lib/maintenance";
 import type { HydrantIntervention, HydrantStatus, InterventionCategory, InterventionOutcome } from "@/types/hydrant";
@@ -95,7 +96,7 @@ export default function RegistroInterventiPage() {
 
       if (intRes.error) {
         setLoadError(
-          intRes.error.message.includes("does not exist")
+          isMissingTableError(intRes.error)
             ? "Registro manutenzione non ancora attivo: va eseguita la migration add_maintenance_register.sql su Supabase."
             : intRes.error.message,
         );
