@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, List, LogOut, Map as MapIcon } from "lucide-react";
+import { Building2, ClipboardList, List, LogOut, Map as MapIcon, Tags } from "lucide-react";
 
 /** Ruoli ammessi nel pannello. Gli operatori vedono solo la mappa operativa. */
 const PANEL_ROLES = ["referent", "superadmin", "admin_ente", "operator"];
@@ -100,7 +100,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       : []),
     { href: "/admin/mappa", label: "Mappa operativa", icon: MapIcon },
     ...(role !== "operator"
-      ? [{ href: "/admin", label: role === "admin_ente" ? "Elenco e operatori" : "Elenco idranti", icon: List }]
+      ? [
+          { href: "/admin", label: role === "admin_ente" ? "Elenco e operatori" : "Elenco idranti", icon: List },
+          { href: "/admin/interventi", label: "Registro interventi", icon: ClipboardList },
+        ]
+      : []),
+    ...(role === "superadmin" || role === "referent"
+      ? [{ href: "/admin/codifiche", label: "Codifiche", icon: Tags }]
       : []),
   ];
 

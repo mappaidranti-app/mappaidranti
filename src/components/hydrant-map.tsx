@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { FlameLogo } from "@/components/flame-logo";
+import { uploadHydrantPhoto } from "@/lib/photos";
+import { MaintenanceSection } from "@/components/maintenance-section";
 import type { CappellottoStatus, Hydrant, HydrantCondition, HydrantFormState, HydrantStatus, HydrantType, PitStatus } from "@/types/hydrant";
 
 const DEFAULT_CENTER: LatLngExpression = [41.9028, 12.4964];
@@ -91,6 +93,36 @@ const SOTTOSUOLO_SVG =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7 9.5h10M5.5 12h13M7 14.5h10"/></svg>';
 
 const iconCache = new Map<string, L.DivIcon>();
+
+/** Ricostruisce lo stato del modulo da un idrante salvato (per la modifica). */
+function formFromHydrant(h: Hydrant): HydrantFormState {
+  const dn = h.dn || "";
+  const count = (uni: string) => Number(dn.match(new RegExp(`UNI ${uni} \\((\\d+)\\)`))?.[1] ?? 0);
+  const okKo = (present: boolean | null | undefined) => (present === true ? "OK" : present === false ? "KO" : null);
+  return {
+    code: h.code || "",
+    street: h.street || "",
+    street_number: h.street_number || "",
+    type: String(h.type || "").trim().toLowerCase() === "sottosuolo" ? "SOTTOSUOLO" : "A COLONNA",
+    connections: h.connections ?? [],
+    status: h.status ?? null,
+    condition: h.condition ?? null,
+    uni45Count: count("45"),
+    uni70Count: count("70"),
+    caps_status: okKo(h.caps_present),
+    missingCaps: h.caps_present === false ? (h.caps_quantity ?? 1) : 0,
+    chains_status: okKo(h.chains_present),
+    missingChains: h.chains_present === false ? (h.chains_quantity ?? 1) : 0,
+    sign_present: h.sign_present ?? null,
+    accessibility: h.accessibility || "",
+    notes: h.notes || "",
+    has_pit: h.has_pit ?? null,
+    pit_status: h.pit_status ?? null,
+    needs_painting: h.needs_painting ?? null,
+    cappellotto_status: h.cappellotto_status ?? null,
+    water_leak: h.water_leak ?? null,
+  };
+}
 
 const STATUS_PIN_CLASS: Record<HydrantStatus, string> = {
   Funzionante: "hydrant-pin--st-ok",
@@ -190,38 +222,6 @@ function MapClickHandler({
   return null;
 }
 
-const PHOTO_MAX_SIDE = 1600;
-const PHOTO_QUALITY = 0.8;
-
-/**
- * Riduce la foto prima dell'invio (lato lungo max 1600 px, JPEG 80%):
- * una foto del telefono passa da 3-8 MB a ~300 KB, così il salvataggio
- * funziona anche con poca rete. In caso di problemi si invia l'originale.
- */
-async function compressPhoto(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") || file.size < 400_000) return file;
-  try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
-  } catch (err) {
-    console.warn("Compressione foto non riuscita, invio l'originale:", err);
-    return file;
-  }
-}
-
-function buildPhotoPath(file: File) {
-  const extension = file.name.split(".").pop() || "jpg";
-  const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
-  return cleanFileName;
-}
 
 /**
  * - "consultazione": pagina iniziale per VVFF, visitatori e chiunque consulti. Solo idranti
@@ -253,6 +253,10 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
   const [currentMunicipality, setCurrentMunicipality] = useState<string | null>(null);
   const [currentProvince, setCurrentProvince] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState(false);
+  /** Nome di chi è collegato, salvato su schede e interventi per la tracciabilità */
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  /** Idrante salvato che si sta modificando (null = nuovo inserimento) */
+  const [editingHydrant, setEditingHydrant] = useState<Hydrant | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   /** true = modalità sola lettura (VVFF / consultazione / anonimo) */
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -390,9 +394,10 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
         if (sessionData?.session?.user?.id) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("municipality_id, role")
+            .select("municipality_id, role, full_name, email")
             .eq("id", sessionData.session.user.id)
             .single();
+          setCurrentUserName(profile?.full_name || profile?.email || null);
           if (profile?.municipality_id) {
             loadedMunicipalityId = profile.municipality_id;
             setMunicipalityId(loadedMunicipalityId);
@@ -554,6 +559,34 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
     }
   }
 
+  /** Apre il modulo precompilato con i dati di un idrante salvato; il punto giallo si può trascinare per correggere la posizione. */
+  function startEditHydrant(h: Hydrant) {
+    setEditingHydrant(h);
+    setForm(formFromHydrant(h));
+    setFileRavvicinata(null);
+    setFilePanoramica(null);
+    setFilePozzetto(null);
+    setPreviewPanoramica(h.photo_url);
+    setPreviewRavvicinata(h.closeup_photo_url ?? null);
+    setPreviewPozzetto(h.pit_photo_url ?? null);
+    setCurrentMunicipality(municipalitiesFilterList.find((m) => m.id === h.municipality_id)?.name ?? null);
+    setSelectedHydrant(null);
+    setFromClosestList(false);
+    setDraftPosition({ latitude: h.latitude, longitude: h.longitude });
+    setIsDrawerOpen(true);
+    setMessage("Modifica i dati e premi Salva modifiche. Trascina il punto giallo per spostare l'idrante.");
+  }
+
+  // Chiudendo il modulo (Annulla, Indietro, Esc) si esce anche dalla modifica
+  useEffect(() => {
+    if (draftPosition || !editingHydrant) return;
+    setEditingHydrant(null);
+    setForm(emptyForm);
+    setPreviewPanoramica(null);
+    setPreviewRavvicinata(null);
+    setPreviewPozzetto(null);
+  }, [draftPosition, editingHydrant]);
+
   function handleNuovoIdrante() {
     if (!navigator.geolocation) {
       setMessage("Geolocalizzazione non supportata.");
@@ -619,22 +652,24 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
       form.cappellotto_status = null;
       form.needs_painting = false;
       
-      // Defaults for fields hidden in Sottosuolo mode
-      form.status = "Funzionante";
-      form.condition = "DISCRETO";
-      form.sign_present = false;
-      form.notes = "";
-      form.has_pit = true;
-      form.pit_status = "apre_facilmente";
+      // Valori per i campi nascosti nel modulo sottosuolo
+      // (in modifica si conservano quelli già salvati)
+      form.status = editingHydrant?.status ?? "Funzionante";
+      form.condition = editingHydrant?.condition ?? "DISCRETO";
+      form.sign_present = editingHydrant?.sign_present ?? false;
+      form.notes = editingHydrant?.notes ?? "";
+      form.has_pit = editingHydrant?.has_pit ?? true;
+      form.pit_status = editingHydrant?.pit_status ?? "apre_facilmente";
     }
 
     setIsSaving(true);
     setMessage("Salvataggio scheda tecnica...");
 
     try {
-      let photoUrl: string | null = null;
-      let pitPhotoUrl: string | null = null;
-      let closeupPhotoUrl: string | null = null;
+      // In modifica le foto già salvate restano, a meno che non se ne scatti una nuova
+      let photoUrl: string | null = editingHydrant?.photo_url ?? null;
+      let pitPhotoUrl: string | null = editingHydrant?.pit_photo_url ?? null;
+      let closeupPhotoUrl: string | null = editingHydrant?.closeup_photo_url ?? null;
 
       // 1. Upload delle foto (con Promise.all per parallelismo)
       const filesToUpload = [];
@@ -648,22 +683,10 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
         let uploadedCount = 0;
         
         const uploadPromises = filesToUpload.map(async (item) => {
-          const photo = await compressPhoto(item.file);
-          const path = buildPhotoPath(photo);
-          const { error } = await supabase!.storage
-            .from("hydrant-photos")
-            .upload(path, photo, { upsert: false, contentType: photo.type });
-            
-          if (error) {
-            throw new Error(`Impossibile caricare la foto ${item.type}: ${error.message}`);
-          }
-          
-          const { data } = supabase!.storage.from("hydrant-photos").getPublicUrl(path);
-          
+          const url = await uploadHydrantPhoto(item.file, `foto ${item.type}`);
           uploadedCount++;
           setMessage(`Caricamento immagini in corso... (${uploadedCount}/${filesToUpload.length})`);
-          
-          return { type: item.type, url: data.publicUrl };
+          return { type: item.type, url };
         });
 
         // Se un solo upload fallisce, catch cattura l'eccezione, interrompendo prima dell'INSERT
@@ -700,7 +723,8 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
         notes: form.notes.trim() || null,
         latitude: draftPosition.latitude,
         longitude: draftPosition.longitude,
-        municipality_id: municipalityId,
+        // In modifica il comune resta quello dell'idrante (se mancava, si assegna quello dell'utente)
+        municipality_id: editingHydrant ? (editingHydrant.municipality_id ?? municipalityId) : municipalityId,
         hamlet: null,
         street: form.street.trim() || null,
         street_number: form.street_number.trim() || null,
@@ -718,26 +742,33 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
         water_leak: form.water_leak ?? false,
       };
 
-      console.log("=== [IDRANTYA] DEBUG SALVATAGGIO IDRANTE ===");
-      console.log("Payload DB:", JSON.stringify(payload, null, 2));
+      const { data: savedHydrant, error: saveError } = editingHydrant
+        ? await supabase
+            .from("hydrants")
+            .update({ ...payload, updated_by_name: currentUserName })
+            .eq("id", editingHydrant.id)
+            .select("*")
+            .single()
+        : await supabase
+            .from("hydrants")
+            .insert({ ...payload, created_by_name: currentUserName })
+            .select("*")
+            .single();
 
-      const { data: newHydrant, error: insertError } = await supabase
-        .from("hydrants")
-        .insert(payload)
-        .select("*")
-        .single();
-
-      if (insertError) {
-        console.error("[IDRANTYA] Errore INSERT:", insertError);
-        throw new Error(`Errore DB: ${insertError.message} (code: ${insertError.code})`);
+      if (saveError) {
+        console.error("[IDRANTYA] Errore salvataggio:", saveError);
+        throw new Error(`Errore DB: ${saveError.message} (code: ${saveError.code})`);
       }
 
-      console.log("[IDRANTYA] Idrante inserito con successo, id:", newHydrant.id, "code:", newHydrant.code);
-
-      const finalHydrant = newHydrant;
+      const wasEditing = !!editingHydrant;
 
       // 4. Aggiorna UI e resetta form
-      setHydrants((current) => [finalHydrant as Hydrant, ...current]);
+      setHydrants((current) =>
+        wasEditing
+          ? current.map((h) => (h.id === savedHydrant.id ? (savedHydrant as Hydrant) : h))
+          : [savedHydrant as Hydrant, ...current],
+      );
+      setEditingHydrant(null);
       setDraftPosition(null);
       setIsDrawerOpen(false);
       setForm(emptyForm);
@@ -753,7 +784,7 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
       setPreviewPozzetto(null);
       setPanoramicaVerticale(false);
 
-      setMessage("✅ Idrante salvato con successo!");
+      setMessage(wasEditing ? "✅ Modifiche salvate!" : "✅ Idrante salvato con successo!");
       setTimeout(() => {
         setMessage("Tocca la mappa per censire un nuovo idrante.");
       }, 4000);
@@ -949,7 +980,7 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
           </Marker>
         )}
 
-        {filteredHydrants.map((hydrant) => {
+        {filteredHydrants.filter((h) => h.id !== editingHydrant?.id).map((hydrant) => {
           const closestRank = isClosestListOpen ? closestHydrantsList.findIndex((h) => h.id === hydrant.id) + 1 : 0;
           return (
           <Marker
@@ -993,7 +1024,8 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
       </MapContainer>
 
       {/* ── TOP BAR ── Logo + Idranti Vicini + Cerca + Filtri */}
-      <section className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col items-center gap-2 p-3">
+      {/* Da computer il modulo sta a destra: mentre è aperto la barra si nasconde per non coprirlo */}
+      <section className={`pointer-events-none absolute inset-x-0 top-0 z-[500] flex flex-col items-center gap-2 p-3 ${isDrawerOpen || draftPosition ? "md:hidden" : ""}`}>
 
         {/* Riga 1: Idranti Vicini | Cerca | Localizza (il logo è nella barra in alto) */}
         <div className="pointer-events-auto flex w-full max-w-xl items-center gap-2 rounded-2xl border border-white/60 bg-white/90 px-3 py-2.5 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
@@ -1124,7 +1156,9 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Catasto operativo</p>
-                <h2 className="text-base font-bold text-slate-900">Scheda tecnica</h2>
+                <h2 className="text-base font-bold text-slate-900">
+                  {editingHydrant ? `Modifica idrante ${editingHydrant.code || ""}`.trim() : "Scheda tecnica"}
+                </h2>
                 <p className="text-xs font-semibold text-blue-700 mt-0.5">
                   {currentMunicipality ? `Comune di ${currentMunicipality}` : "Ricerca Comune..."}
                 </p>
@@ -1856,8 +1890,9 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
 
           {/* Blocco Validazione */}
           {(() => {
+            const hasPanoramica = filePanoramica !== null || !!editingHydrant?.photo_url;
             const isFormValid = isSottosuolo
-              ? !!(form.street.trim() && form.accessibility !== "" && filePanoramica !== null)
+              ? !!(form.street.trim() && form.accessibility !== "" && hasPanoramica)
               : !!(
                   form.street.trim() &&
                   form.status !== null &&
@@ -1870,7 +1905,7 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
                   form.needs_painting !== null &&
                   form.sign_present !== null &&
                   form.accessibility !== "" &&
-                  filePanoramica !== null
+                  hasPanoramica
                 );
 
             return (
@@ -1893,7 +1928,7 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
                   ) : (
                     <>
                       <Save size={22} aria-hidden="true" />
-                      ✅ CONFERMA INSERIMENTO
+                      {editingHydrant ? "✅ SALVA MODIFICHE" : "✅ CONFERMA INSERIMENTO"}
                     </>
                   )}
                 </button>
@@ -2197,6 +2232,20 @@ export default function HydrantMap({ mode = "consultazione" }: { mode?: "consult
                 )}
               </div>
             </div>
+
+            {/* Azioni e registro manutenzione: solo nella mappa operativa */}
+            {isOperativa && canEdit && (
+              <MaintenanceSection
+                hydrant={selectedHydrant}
+                userName={currentUserName}
+                isAdmin={isAdmin}
+                onEdit={() => startEditHydrant(selectedHydrant)}
+                onHydrantUpdated={(updated) => {
+                  setHydrants((current) => current.map((h) => (h.id === updated.id ? updated : h)));
+                  setSelectedHydrant(updated);
+                }}
+              />
+            )}
 
             {/* Note */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">

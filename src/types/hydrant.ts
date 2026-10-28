@@ -50,6 +50,12 @@ export type Hydrant = {
   cappellotto_status?: CappellottoStatus | null;
   /** Presenza di perdita d'acqua visibile */
   water_leak?: boolean | null;
+  /** Tracciabilità: chi ha censito e chi ha modificato per ultimo */
+  created_by?: string | null;
+  created_by_name?: string | null;
+  updated_at?: string | null;
+  updated_by?: string | null;
+  updated_by_name?: string | null;
 };
 
 export type HydrantFormState = {
@@ -78,4 +84,50 @@ export type HydrantFormState = {
   cappellotto_status: CappellottoStatus | null;
   /** Presenza di perdita d'acqua visibile */
   water_leak: boolean | null;
+};
+
+/** Tipo di intervento del registro manutenzione */
+export type InterventionCategory =
+  | "verifica"
+  | "prova_acqua"
+  | "verniciatura"
+  | "tappi"
+  | "catenelle"
+  | "riparazione"
+  | "altro";
+
+export type InterventionOutcome = "positivo" | "negativo" | "parziale";
+
+/** Voce del registro manutenzione di un idrante */
+export type HydrantIntervention = {
+  id: string;
+  hydrant_id: string;
+  municipality_id: string | null;
+  /** Data dell'intervento (YYYY-MM-DD) */
+  performed_at: string;
+  category: InterventionCategory;
+  code: string | null;
+  outcome: InterventionOutcome | null;
+  /** Prova acqua: l'acqua arriva? */
+  water_ok: boolean | null;
+  /** Prova acqua: pressione misurata in bar */
+  pressure_bar: number | null;
+  /** Tappi / catenelle montati */
+  quantity: number | null;
+  /** Chi ha eseguito l'intervento (operatore o ditta, con eventuale codice) */
+  performed_by: string | null;
+  notes: string | null;
+  photo_url: string | null;
+  /** Stato dell'idrante dopo l'intervento, se indicato */
+  status_after: HydrantStatus | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+
+/** Voce della tabella codifiche intervento */
+export type InterventionCode = {
+  code: string;
+  description: string;
+  category: string | null;
+  is_active: boolean;
 };

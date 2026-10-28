@@ -580,3 +580,47 @@ export async function loginOperator(phone: string, pin: string) {
     operator: { id: operator.id, municipality_id: operator.municipality_id, name: operator.name },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Codifiche intervento (solo superadmin)
+// ---------------------------------------------------------------------------
+
+const MAX_CODES_PER_IMPORT = 5000;
+
+/**
+ * Importa / aggiorna le codifiche intervento (es. le voci fornite dal committente).
+ * Le voci con lo stesso codice vengono aggiornate, le altre aggiunte; nessuna viene cancellata.
+ */
+export async function importInterventionCodes(
+  accessToken: string,
+  rows: { code: string; description: string; category?: string | null }[],
+) {
+  const caller = await getCaller(accessToken);
+  if (!caller) return { error: NOT_AUTHENTICATED };
+  if (!caller.isSuperAdmin) return { error: NOT_AUTHORIZED };
+
+  if (!Array.isArray(rows) || rows.length === 0) return { error: "Nessuna codifica da importare." };
+  if (rows.length > MAX_CODES_PER_IMPORT) return { error: `Massimo ${MAX_CODES_PER_IMPORT} codifiche per volta.` };
+
+  // Pulizia e de-duplicazione (vale l'ultima occorrenza di ogni codice)
+  const byCode = new Map<string, { code: string; description: string; category: string | null; is_active: boolean }>();
+  for (const r of rows) {
+    const code = String(r?.code ?? "").trim().slice(0, 50);
+    const description = String(r?.description ?? "").trim().slice(0, 500);
+    const category = String(r?.category ?? "").trim().slice(0, 100) || null;
+    if (!code || !description) continue;
+    byCode.set(code, { code, description, category, is_active: true });
+  }
+  const clean = [...byCode.values()];
+  if (clean.length === 0) return { error: "Nessuna riga valida: servono almeno codice e descrizione." };
+
+  for (let i = 0; i < clean.length; i += 500) {
+    const { error } = await supabaseAdmin
+      .from("intervention_codes")
+      .upsert(clean.slice(i, i + 500), { onConflict: "code" });
+    if (error) return { error: `Errore durante l'import: ${error.message}` };
+  }
+
+  revalidatePath("/admin/codifiche");
+  return { success: true, imported: clean.length, skipped: rows.length - clean.length };
+}
