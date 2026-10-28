@@ -158,3 +158,19 @@ body {
     animation: none;
   }
 }
+
+/* Mappa operativa: colore per stato (la forma resta quella del tipo) */
+.hydrant-pin--st-ok {
+  background: linear-gradient(135deg, #34d399, #059669);
+  box-shadow: 0 8px 16px rgb(5 150 105 / 0.35);
+}
+
+.hydrant-pin--st-review {
+  background: linear-gradient(135deg, #fdba74, #ea580c);
+  box-shadow: 0 8px 16px rgb(234 88 12 / 0.35);
+}
+
+.hydrant-pin--st-ko {
+  background: linear-gradient(135deg, #fb7185, #be123c);
+  box-shadow: 0 8px 16px rgb(190 18 60 / 0.35);
+}

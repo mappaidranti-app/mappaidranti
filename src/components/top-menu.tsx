@@ -7,8 +7,8 @@ import Link from "next/link";
 import { Flame, LayoutDashboard, LogOut, Map as MapIcon } from "lucide-react";
 import { getUserRole } from "../app/admin/actions";
 
-/** Ruoli che hanno accesso al pannello di controllo */
-const PANEL_ROLES = ["referent", "superadmin", "admin_ente"];
+/** Ruoli che hanno accesso al pannello di controllo (gli operatori solo alla mappa operativa) */
+const PANEL_ROLES = ["referent", "superadmin", "admin_ente", "operator"];
 
 /**
  * Barra in alto: nome dell'app ben visibile, titolo della pagina e un solo tasto d'azione.
@@ -58,7 +58,8 @@ export function TopMenu() {
 
   const isPanel = pathname.startsWith("/admin");
   const canOpenPanel = !!role && PANEL_ROLES.includes(role);
-  const panelHref = role === "superadmin" ? "/admin/superadmin" : "/admin";
+  const panelHref =
+    role === "superadmin" ? "/admin/superadmin" : role === "operator" ? "/admin/mappa" : "/admin";
 
   const buttonClass =
     "flex shrink-0 items-center gap-2 rounded-xl px-3 sm:px-4 py-2.5 text-sm font-black uppercase tracking-wide shadow-sm transition active:scale-95";
@@ -89,7 +90,7 @@ export function TopMenu() {
           <span className="hidden sm:inline">Pannello di controllo</span>
         </Link>
       ) : isLoggedIn ? (
-        // Operatori di campo: per ora lavorano dalla mappa, serve solo poter uscire
+        // Utenti di sola consultazione (es. VVFF): serve solo poter uscire
         <button type="button" onClick={handleLogout} className={`${buttonClass} bg-slate-100 text-slate-800 hover:bg-slate-200`}>
           <LogOut size={18} aria-hidden="true" />
           <span>Esci</span>

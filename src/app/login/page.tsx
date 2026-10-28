@@ -51,7 +51,8 @@ export default function LoginPage() {
           localStorage.removeItem("userRole");
           // Solo per visualizzazione (nome operatore), NON usato per i permessi
           localStorage.setItem("operatorData", JSON.stringify(res.operator));
-          router.replace("/");
+          // Gli operatori lavorano dalla mappa operativa del pannello
+          router.replace("/admin/mappa");
         }
       } catch (err) {
         console.error(err);
@@ -87,7 +88,7 @@ export default function LoginPage() {
         if (profile?.role === "operator" && !profile?.terms_accepted) {
           router.replace("/accettazione-termini");
         } else if (profile?.role === "operator") {
-          router.replace("/");
+          router.replace("/admin/mappa");
         } else if (profile?.role === "superadmin") {
           router.replace("/admin/superadmin");
         } else {

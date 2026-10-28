@@ -22,7 +22,7 @@ export default function AccettazioneTerminiPage() {
         .eq("id", session.user.id);
 
       if (!error) {
-        router.push("/");
+        router.push("/admin/mappa");
       } else {
         setLoading(false);
         alert("Si è verificato un errore durante l'accettazione dei termini.");

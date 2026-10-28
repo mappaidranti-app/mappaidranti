@@ -92,19 +92,29 @@ const SOTTOSUOLO_SVG =
 
 const iconCache = new Map<string, L.DivIcon>();
 
+const STATUS_PIN_CLASS: Record<HydrantStatus, string> = {
+  Funzionante: "hydrant-pin--st-ok",
+  "Da verificare": "hydrant-pin--st-review",
+  "Non funzionante": "hydrant-pin--st-ko",
+};
+
 /**
- * Segnaposto per tipo di idrante: colonna = goccia rossa, sottosuolo = rombo viola.
+ * Segnaposto per tipo di idrante: la forma indica il tipo (colonna = goccia, sottosuolo = rombo).
+ * Colore: nella mappa di consultazione per tipo (rosso / viola); nella mappa operativa
+ * (`status` valorizzato) per stato (verde / arancio / rosso).
  * `highlighted` = idrante della lista "Idranti vicini".
  */
-function hydrantTypeIcon(type: string | null | undefined, highlighted = false) {
+function hydrantTypeIcon(type: string | null | undefined, highlighted = false, status?: HydrantStatus | null) {
   const isSottosuolo = String(type || "").trim().toLowerCase() === "sottosuolo";
-  const key = `${isSottosuolo ? "s" : "c"}-${highlighted ? 1 : 0}`;
+  const statusClass = status ? STATUS_PIN_CLASS[status] ?? "hydrant-pin--st-review" : "";
+  const key = `${isSottosuolo ? "s" : "c"}-${highlighted ? 1 : 0}-${statusClass}`;
   let icon = iconCache.get(key);
   if (!icon) {
     const classes = [
       "hydrant-pin",
       "hydrant-pin--icon",
       isSottosuolo ? "hydrant-pin--sottosuolo" : "hydrant-pin--colonna",
+      statusClass,
       highlighted ? "hydrant-pin--closest" : "",
     ].join(" ");
     const size = highlighted ? 40 : 32;
@@ -213,7 +223,14 @@ function buildPhotoPath(file: File) {
   return cleanFileName;
 }
 
-export default function HydrantMap() {
+/**
+ * - "consultazione": pagina iniziale per VVFF, visitatori e chiunque consulti. Solo idranti
+ *   funzionanti, idranti vicini e scheda di dettaglio; nessuna modifica.
+ * - "operativa": dentro il pannello di controllo. Tutti gli idranti colorati per stato,
+ *   ricerca, nuovo idrante.
+ */
+export default function HydrantMap({ mode = "consultazione" }: { mode?: "consultazione" | "operativa" }) {
+  const isOperativa = mode === "operativa";
   const [hydrants, setHydrants] = useState<Hydrant[]>([]);
   const [showSplash, setShowSplash] = useState(true);
   const [draftPosition, setDraftPosition] = useState<{
@@ -261,7 +278,7 @@ export default function HydrantMap() {
 
   // Ricerca e filtro stato
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">("Funzionante");
+  const [statusFilter, setStatusFilter] = useState<HydrantStatus | "">(isOperativa ? "" : "Funzionante");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [municipalitiesFilterList, setMunicipalitiesFilterList] = useState<{id: string, name: string}[]>([]);
   const [selectedMunicipalityFilter, setSelectedMunicipalityFilter] = useState<string>("all");
@@ -402,6 +419,13 @@ export default function HydrantMap() {
             setIsReadOnly(true);
           }
         }
+      }
+
+      // La mappa di consultazione è sempre in sola lettura, qualunque sia il ruolo:
+      // modifiche e nuovi idranti si fanno dalla mappa operativa del pannello.
+      if (!isOperativa) {
+        setCanEdit(false);
+        setIsReadOnly(true);
       }
 
       let query = supabase.from("hydrants").select("*").order("created_at", { ascending: false });
@@ -931,7 +955,7 @@ export default function HydrantMap() {
           <Marker
             key={hydrant.id}
             position={[hydrant.latitude, hydrant.longitude]}
-            icon={hydrantTypeIcon(hydrant.type, closestRank > 0)}
+            icon={hydrantTypeIcon(hydrant.type, closestRank > 0, isOperativa ? hydrant.status : null)}
             zIndexOffset={closestRank > 0 ? 1000 - closestRank : 0}
             eventHandlers={{
               click: () => {
@@ -980,37 +1004,51 @@ export default function HydrantMap() {
             type="button"
             onClick={() => findClosestHydrants()}
             disabled={!userPosition || hydrants.length === 0}
-            className="flex flex-1 items-center justify-center gap-3 rounded-2xl border-3 border-red-400 bg-gradient-to-r from-red-600 to-rose-700 px-6 py-4 text-2xl font-black tracking-wide text-white shadow-xl shadow-red-600/40 transition-all hover:from-red-700 hover:to-rose-800 active:scale-95 disabled:pointer-events-none disabled:opacity-40 animate-pulse"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:gap-3 rounded-2xl border-3 border-red-400 bg-gradient-to-r from-red-600 to-rose-700 px-3 sm:px-6 py-3 sm:py-4 text-lg sm:text-2xl font-black leading-tight tracking-wide text-white shadow-xl shadow-red-600/40 transition-all hover:from-red-700 hover:to-rose-800 active:scale-95 disabled:pointer-events-none disabled:opacity-40 animate-pulse"
           >
-            <LocateFixed size={32} aria-hidden="true" />
+            <LocateFixed size={32} aria-hidden="true" className="hidden sm:block" />
             🚒 IDRANTI VICINI
           </button>
 
-          {/* Cerca */}
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen(prev => !prev)}
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-all active:scale-95 ${isSearchOpen ? "border-blue-400 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600"}`}
-            aria-label="Cerca idrante"
-            title="Cerca idrante"
-          >
-            <Search size={20} aria-hidden="true" />
-          </button>
+          {/* Ricerca idranti: solo nella mappa operativa del pannello */}
+          {isOperativa && (
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(prev => !prev)}
+              className={`flex h-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-2.5 transition-all active:scale-95 ${isSearchOpen ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"}`}
+              aria-label="Ricerca idranti"
+            >
+              <Search size={20} aria-hidden="true" />
+              <span className="text-[10px] font-black uppercase leading-none">Ricerca</span>
+            </button>
+          )}
 
-          {/* Localizza */}
+          {/* Localizza: riporta la mappa sulla propria posizione */}
           <button
             type="button"
             onClick={locateUser}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
-            aria-label="Centra sulla posizione utente"
-            title="Centra sulla posizione utente"
+            className="flex h-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-2.5 text-slate-600 shadow-sm transition-all hover:border-blue-300 hover:text-blue-600 active:scale-95"
+            aria-label="Centra la mappa sulla mia posizione"
           >
             <Crosshair size={20} aria-hidden="true" />
+            <span className="text-[10px] font-black uppercase leading-none">Dove sono</span>
           </button>
         </div>
 
         {/* Riga 2: Pannello Cerca + Filtri (appare quando isSearchOpen) */}
-        {isSearchOpen && (
+        {/* Legenda della mappa operativa */}
+        {isOperativa && !isSearchOpen && (
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl border border-white/60 bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-md backdrop-blur-xl">
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-emerald-500" />Funzionante</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-orange-500" />Da verificare</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-rose-600" />Non funzionante</span>
+            <span className="text-slate-400">|</span>
+            <span>● goccia = colonna</span>
+            <span>◆ rombo = sottosuolo</span>
+          </div>
+        )}
+
+        {isOperativa && isSearchOpen && (
           <div className="pointer-events-auto w-full max-w-xl animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="rounded-2xl border border-white/60 bg-white/95 px-3 py-3 shadow-xl shadow-slate-900/10 backdrop-blur-xl space-y-2">
               {/* Campo di testo ricerca */}
@@ -1077,7 +1115,7 @@ export default function HydrantMap() {
 
 
       {!isReadOnly && (
-      <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[90vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"}`}>
+      <aside className={`absolute inset-x-0 bottom-0 z-[450] max-h-[90vh] flex flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[460px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:translate-y-0 ${isDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-80px)]"} ${!isDrawerOpen && !draftPosition ? "md:hidden" : ""}`}>
         <DrawerHandle isOpen={isDrawerOpen} onToggle={() => setIsDrawerOpen(prev => !prev)}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -1884,27 +1922,10 @@ export default function HydrantMap() {
         </div>
       )}
 
-      {/* ── PULSANTE RICERCA IDRANTI (Solo Visitatore / VVFF) ── */}
-      {isReadOnly && !draftPosition && !isClosestListOpen && (
-        <div className="absolute inset-x-0 bottom-8 z-[500] flex justify-center px-4 pointer-events-none">
-          <div className="relative pointer-events-auto">
-            <span className="absolute inset-0 rounded-full animate-ping bg-slate-500/30" />
-            <button
-              type="button"
-              onClick={() => setIsSearchOpen(true)}
-              className="relative flex w-full min-w-[260px] max-w-xs items-center justify-center gap-3 rounded-full bg-gradient-to-r from-slate-700 to-slate-900 py-5 px-8 text-xl font-black tracking-wide text-white shadow-[0_12px_50px_rgba(15,23,42,0.5)] transition-transform hover:scale-[1.03] active:scale-95 border-[3px] border-white/30"
-            >
-              <Search size={28} aria-hidden="true" />
-              RICERCA IDRANTI
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Modal Idrante Più Vicino - Bottom Sheet / Drawer */}
       {isClosestListOpen && (
         <>
-          {/* Nessun velo sulla mappa: gli idranti vicini restano visibili, numerati come nella lista */}
+          {/* Nessun velo sulla mappa: gli idranti vicini restano visibili ed evidenziati */}
           <div className="absolute inset-x-0 bottom-0 z-[600] flex max-h-[40vh] md:max-h-[70vh] flex-col rounded-t-3xl border-t border-slate-200/80 bg-slate-50 shadow-[0_-12px_40px_rgb(0,0,0,0.15)] md:bottom-4 md:left-4 md:w-[400px] md:rounded-2xl md:border md:border-slate-200 md:shadow-2xl animate-in slide-in-from-bottom-full duration-300">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6 rounded-t-3xl md:rounded-t-2xl">
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
